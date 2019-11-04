@@ -125,6 +125,29 @@ def generate_satisfaction_scores(generated_data, number_of_samples):
 
     return generated_data
 
+def generate_null_model(generated_data, number_of_samples):
+    """
+    :param generated_data: array of generated sensor measurements
+    :param number_of_samples: number of generated measurements
+    :return: array with sensors and random satisfaction scores
+    """
+
+    for cell in range(number_of_samples):
+
+    ### Temperature
+        generated_data[cell, 6] = np.random.uniform(0.2, 1)
+    ### Humidity
+        generated_data[cell, 7] = np.random.uniform(0.2, 1)
+    ### Heat Index
+        generated_data[cell, 8] = np.random.uniform(0.2, 1)
+    ### CO2
+        generated_data[cell, 9] = np.random.uniform(0.2, 1)
+    ### Light
+        generated_data[cell, 10] = np.random.uniform(0.2, 1)
+    ### Noise
+        generated_data[cell, 11] = np.random.uniform(0.2, 1)
+
+    return generated_data
 
 def smoothing(y_values: np.ndarray, number_of_samples, wavelet):
     """
@@ -199,4 +222,14 @@ def generate_dataset_with_sensor_readings_and_satisfaction_scores(number_of_samp
                                                     'comfort_score_temperature', 'comfort_score_humidity',
                                                     'comfort_score_heat_index', 'comfort_score_air',
                                                     'comfort_score_light', 'comfort_score_noise'])
-    return satisfaction_vs_sensors
+
+    generated_data_null = generate_null_model(generated_data, number_of_samples)
+
+    satisfaction_vs_sensors_null = pd.DataFrame(generated_data_null,
+                                                columns=['sensor_temperature', 'sensor_humidity', 'sensor_heat_index',
+                                                         'sensor_air', 'sensor_light', 'sensor_noise',
+                                                         'comfort_score_temperature', 'comfort_score_humidity',
+                                                         'comfort_score_heat_index', 'comfort_score_air',
+                                                         'comfort_score_light', 'comfort_score_noise'])
+
+    return satisfaction_vs_sensors, satisfaction_vs_sensors_null

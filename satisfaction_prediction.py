@@ -1,372 +1,39 @@
-# Start Python Imports
-import math
-
+# Visualization
+import matplotlib.pyplot as plt
+from Sort import sort_for_plotting
 # Data Manipulation
 import numpy as np
 import pandas as pd
-import statsmodels
-from scipy.stats import pearsonr, jarque_bera, spearmanr, f_oneway, ttest_ind
-from statsmodels.stats.diagnostic import het_breuschpagan
-from statsmodels.stats.diagnostic import het_white
+import seaborn as sns
 import statsmodels.api as sm
 import statsmodels.stats.power as smp
+from scipy.stats import pearsonr, jarque_bera, spearmanr, f_oneway, ttest_ind
+from sklearn.preprocessing import PolynomialFeatures
+from statsmodels.stats.diagnostic import het_breuschpagan
+from statsmodels.stats.diagnostic import het_white
+# Fitting a model
+from Artificial_Neural_Network import ANN
+from Decision_Tree_Regression import Decision_Tree_Regression
+from Random_Forest_Regression import Random_Forest_Regression
+from Regression import Regression
+from Spline_Regression import Spline_Regression
 from satisfaction_score_data_generator import generate_dataset_with_sensor_readings_and_satisfaction_scores
 
-# Visualization
-import matplotlib.pyplot as plt
-import seaborn as sns
-
-# Preprocessing
-from sklearn import preprocessing
-from sklearn.utils import shuffle
-from keras.layers import Dropout
-from keras import regularizers
-
-# Fitting a model
-from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LinearRegression
-from sklearn.preprocessing import PolynomialFeatures
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.tree import DecisionTreeRegressor
-from sklearn.ensemble import AdaBoostRegressor
-
-# Neural Network
-from keras.models import Sequential
-from keras.layers import Dense
-
-# Evaluation
-from sklearn.metrics import mean_squared_error, r2_score
-from patsy.highlevel import dmatrix
 from tqdm import tqdm
-
 # Ignore warnings
 import warnings
-
 warnings.filterwarnings('ignore')
 
 # %%
 
-def sort_for_plotting(X, y):
-    data_set = np.column_stack((X, y))
-    test_set_sorted = data_set[data_set[:, 0].argsort()]
-    X_sorted = test_set_sorted[:, 0]
-    y_sorted = test_set_sorted[:, 1]
-
-    return X_sorted, y_sorted
-
-
-# %%
-
-def Regression(X, y, sensor_name: str, score_name: str, degree, plot: str):
-    """
-    :param X: array of independent variables
-    :param y: array of dependent variable
-    :param sensor_name: name of the sensor user for plots
-    :param score_name: name of the satisfaction score used for plots
-    :param degree: degree of the polynomial
-    :param plot: takes values 'plot' to plot the functions and 'show' to plot and display
-    """
-
-    # degree: determine the degrees of the polynomial function to be fitted and tested
-    # degree = 1 will result in fitting a Linear Regression to the data
-
-    # Split the generated dataset into train and test set
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=1 / 3, random_state=42)
-
-    polynomial_transformation = PolynomialFeatures(degree=degree)
-
-    # Fit polynomial regression
-    X_polynomial = polynomial_transformation.fit_transform(X_train)
-    polynomial_regression = LinearRegression().fit(X_polynomial, y_train)
-
-    # Predict the satisfaction score
-    y_predicted = polynomial_regression.predict(polynomial_transformation.fit_transform(X_test))
-
-    X_test_sorted, y_predicted_sorted = sort_for_plotting(X_test, y_predicted)
-
-    # Validate model
-    MSE_regression = math.sqrt(mean_squared_error(y_test, y_predicted))
-    R2_regression = r2_score(y_test, y_predicted)
-
-    def plot_regression():
-        # Plot original data
-        plt.scatter(X_test, y_test, color='red')
-        # Plot predicted regression function
-        plt.plot(X_test_sorted, y_predicted_sorted, label=f"Degree {deg}," + f" $R^2$: {round(R2_regression, 3)}, "
-                                                                             f"MSE: {round(MSE_regression, 3)}")
-        plt.legend(loc='upper right')
-        plt.xlabel(f"{sensor_name}")
-        plt.ylabel(f"{score_name}")
-        plt.title(f'Satisfaction vs indoor conditions (Polynomial Regression)')
-        return
-
-    if plot == 'plot':
-        plot_regression()
-    if plot == 'show':
-        plot_regression()
-        plt.show()
-    return R2_regression, MSE_regression,
-
-
-# %%
-
-def Spline_Regression(X, y, sensor_name: str, score_name: str, degree, quantiles, plot):
-    """
-    :param X: array of independent variables
-    :param y: array of dependent variable
-    :param sensor_name: name of the sensor user for plots
-    :param score_name: name of the satisfaction score used for plots
-    :param degree: degree of the polynomial
-    :param quantiles: points of division of the series
-    :param plot: takes values 'plot' to plot the functions and 'show' to plot and display
-    """
-
-    knots_array = np.quantile(X, quantiles)
-    knots = tuple(knots_array)
-
-    # Split the generated dataset into train and test set
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=1 / 3, random_state=42)
-
-    # Generating cubic spline with 4 knots
-    X_reshaped = dmatrix(f"bs(train, knots = {knots}, degree = {degree}, include_intercept = False)",
-                         {"train": X_train}, return_type='dataframe')
-
-    # Fitting Generalised linear model on transformed dataset
-    spline_regression = LinearRegression().fit(X_reshaped, y_train)
-
-    # Predict the satisfaction score
-    y_predicted = spline_regression.predict(
-        dmatrix(f"bs(test, knots = {knots},degree = {degree}, include_intercept = False)", {"test": X_test},
-                return_type='dataframe'))
-
-    X_test_sorted, y_predicted_sorted = sort_for_plotting(X_test, y_predicted)
-
-    # Validate model
-    R2_spline = r2_score(y_test, y_predicted)
-    MSE_spline = math.sqrt(mean_squared_error(y_test, y_predicted))
-
-    def plot_spline_regression():
-        # Plot original data
-        plt.scatter(X_test, y_test, color='red')
-        # Plot predicted regression function
-        plt.plot(X_test_sorted, y_predicted_sorted,
-                 label=f"Degree {degree} with {len(quantiles)} knots, " + f"$R^2$: {round(R2_spline, 3)},"
-                                                                          f" MSE: {round(MSE_spline, 3)}")
-        plt.legend()
-        plt.title('Satisfaction vs indoor conditions (Spline Regression)')
-        plt.xlabel(f'{sensor_name}')
-        plt.ylabel(f'{score_name}')
-        # plt.show()
-        return
-
-    if plot == 'plot':
-        plot_spline_regression()
-    if plot == 'show':
-        plot_spline_regression()
-        plt.show()
-    return R2_spline, MSE_spline
-
-
-# %%
-
-def Random_Forest_Regression(X, y, max_depth, n_estimators, plot):
-    """
-    :param X: array of independent variables
-    :param y: array of dependent variable
-    :param max_depth: maximum depth of the tree
-    :param n_estimators: number of trees in the forest.
-    :param plot: takes values 'plot' to plot the functions and 'show' to plot and display
-    """
-
-    # Split the generated dataset into train and test set
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=1 / 3, random_state=42)
-
-    random_forest_regression = RandomForestRegressor(max_depth=max_depth, random_state=0, n_estimators=n_estimators)
-
-    random_forest_regression.fit(X_train, y_train)
-
-    y_predicted = random_forest_regression.predict(X_test)
-
-    X_test_sorted, y_predicted_sorted = sort_for_plotting(X_test, y_predicted)
-
-    # Validate model
-    R2_random_forest = r2_score(y_test, y_predicted)
-    MSE_random_forest = math.sqrt(mean_squared_error(y_test, y_predicted))
-
-    def plot_random_forest():
-        # Plot original data
-        plt.scatter(X_test, y_test, color='red')
-        # Plot predicted regression function
-        plt.plot(X_test_sorted, y_predicted_sorted, label=f"Depth {max_depth} with {n_estimators} trees, " +
-                                                          f" $R^2$: {round(R2_random_forest, 3)},"
-                                                          f" MSE: {round(MSE_random_forest, 3)}")
-        plt.legend(loc='upper right')
-        plt.xlabel(f"{sensor_name}")
-        plt.ylabel(f"{score_name}")
-        plt.title(f'Satisfaction vs indoor conditions (Random Forest Regression)')
-        return
-
-    if plot == 'plot':
-        plot_random_forest()
-    if plot == 'show':
-        plot_random_forest()
-        plt.show()
-    return R2_random_forest, MSE_random_forest
-
-
-# %%
-
-def Decision_Tree_Regression(X, y, max_depth, n_estimators, plot):
-    """
-    :param X: array of independent variables
-    :param y: array of dependent variable
-    :param max_depth: maximum depth of the tree
-    :param n_estimators: maximum number of estimators at which boosting is terminated
-    :param plot: takes values 'plot' to plot the functions and 'show' to plot and display
-    """
-
-    # Split the generated dataset into train and test set
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=1 / 3, random_state=42)
-
-    boost_decision_tree_regression = AdaBoostRegressor(DecisionTreeRegressor(max_depth=max_depth),
-                                                       n_estimators=n_estimators)
-
-    boost_decision_tree_regression.fit(X_train, y_train)
-
-    y_predicted = boost_decision_tree_regression.predict(X_test)
-
-    X_test_sorted, y_predicted_sorted = sort_for_plotting(X_test, y_predicted)
-
-    # Validate model
-    R2_decision_tree = r2_score(y_test, y_predicted)
-    MSE_decision_tree = math.sqrt(mean_squared_error(y_test, y_predicted))
-
-    def plot_decision_tree():
-        # Plot original data
-        plt.scatter(X_test, y_test, color='red')
-        # Plot predicted regression function
-        plt.plot(X_test_sorted, y_predicted_sorted, label=f"Depth {max_depth} with {n_estimators} estimators" +
-                                                          f" $R^2$: {round(R2_decision_tree, 3)}, "
-                                                          f"MSE: {round(MSE_decision_tree, 3)}")
-        plt.legend(loc='upper right')
-        plt.xlabel(f"{sensor_name}")
-        plt.ylabel(f"{score_name}")
-        plt.title(f'Satisfaction vs indoor conditions (Boosted Decision Tree Regression)')
-        return
-
-    if plot == 'plot':
-        plot_decision_tree()
-    if plot == 'show':
-        plot_decision_tree()
-        plt.show()
-    return R2_decision_tree, MSE_decision_tree
-
-
-# %%
-
-def ANN(X, y, number_of_nodes, number_of_layers, dropout_rate, number_of_epochs, regularization_penalty, plot):
-    """
-    :param X: array of independent variables
-    :param y: array of dependent variable
-    :param number_of_nodes: number of neurons
-    :param number_of_layers: number of layers
-    :param dropout_rate: fraction rate between 0 and 1 of the input units to drop
-    :param number_of_epochs: number of training iterations
-    :param regularization_penalty: regularization penalty on layer parameters during optimization
-    :param plot: takes values 'plot' to plot the functions and 'show' to plot and display
-    """
-    layers_parameters = [number_of_nodes] * number_of_layers
-
-    scaler = preprocessing.StandardScaler()
-    X_standarized = scaler.fit_transform(X)
-
-    # Shuffle the previously sorted dataset - in ANN ordered data impairs learning
-    X_standarized_shuffle, y_shuffle = shuffle(X_standarized, y)
-
-    # Split the generated dataset into train and test set
-    X_train, X_test, y_train, y_test = train_test_split(X_standarized_shuffle, y_shuffle, test_size=1 / 3,
-                                                        random_state=42, shuffle=True)
-    input_size = X.shape[1]
-
-    # Create a model with 2 hidden layers and 32 neurons using Rectified Linear Unit Activation Function
-    # Add regularization (L2 - norm) and dropout to fight overfitting
-
-    def create_model(layers_parameters):
-        model = Sequential()
-        model.add(
-            Dense(layers_parameters[0], activation='relu', kernel_regularizer=regularizers.l2(regularization_penalty),
-                  input_dim=input_size))
-        model.add(Dropout(dropout_rate))
-
-        for neuron_number in layers_parameters[1:]:
-            model.add(
-                Dense(neuron_number, activation='relu', kernel_regularizer=regularizers.l2(regularization_penalty)))
-            model.add(Dropout(dropout_rate))
-
-        model.add(Dense(input_size, activation='relu', kernel_regularizer=regularizers.l2(regularization_penalty)))
-        return model
-
-    model = create_model(layers_parameters)
-
-    model.compile(optimizer='adam',
-                  loss='mean_squared_error',
-                  metrics=['mean_squared_error'])
-
-    training_history = model.fit(X_train, y_train,
-                                 batch_size=32, epochs=number_of_epochs,
-                                 validation_data=(X_test, y_test))
-
-    y_predicted = model.predict(X_test, batch_size=32, verbose=0)
-
-    X_test_sorted, y_predicted_sorted = sort_for_plotting(X_test, y_predicted)
-
-    MSE_ANN = model.evaluate(X_test, y_test)[1]
-
-    R2_ANN = r2_score(y_test, y_predicted)
-
-    # predicted_set = np.c_[X_standarized, y_predicted]
-
-    def plot_artificial_neural_network():
-        plt.figure(figsize=(12, 10))
-        # Plot original data
-        plt.scatter(scaler.inverse_transform(X_test), y_test, color='red')
-        # Plot predicted regression function
-        plt.plot(scaler.inverse_transform(X_test_sorted), y_predicted_sorted,
-                 label=f"Dropout {dropout_rate} with {number_of_epochs} epochs and {regularization_penalty} penalty, " +
-                       f"Nodes: {number_of_nodes}, Layers: {number_of_layers}, " +
-                       f"$R^2$: {round(R2_ANN, 3)}, MSE: {round(MSE_ANN, 3)}")
-        plt.legend()
-        plt.title('Satisfaction vs indoor conditions (ANN)')
-        plt.xlabel(f'{sensor_name}')
-        plt.ylabel(f'{score_name}')
-
-        # plt.plot(training_history.history['mean_squared_error'])
-        # plt.plot(training_history.history['val_mean_squared_error'])
-        # plt.title('Model Error')
-        # plt.ylabel('MSE')
-        # plt.xlabel('Epoch')
-        # plt.legend(['Train', 'Test'])
-        # plt.show()
-
-    if plot == 'plot':
-        plot_artificial_neural_network()
-    if plot == 'show':
-        plot_artificial_neural_network()
-        plt.show()
-
-    return R2_ANN, MSE_ANN, training_history
-
-
-# %%
 # Generate dataset with the scores and reading using satisfaction_score_data_generator.py
 # or read CSV
 number_of_samples = 100
 noise_standard_deviation = 0
 wavelet = 'db8'
 
-satisfaction_vs_sensors = generate_dataset_with_sensor_readings_and_satisfaction_scores(number_of_samples,
-                                                                                        noise_standard_deviation,
-                                                                                        wavelet)
+satisfaction_vs_sensors, satisfaction_vs_sensors_null = generate_dataset_with_sensor_readings_and_satisfaction_scores(
+    number_of_samples, noise_standard_deviation, wavelet)
 # satisfaction_vs_sensors = pd.read_csv('satisfaction_vs_sensors.csv')
 # satisfaction_vs_sensors.to_csv('satisfaction_vs_sensors_smoothing.csv', sep=',')
 # %%
@@ -556,7 +223,8 @@ Results_Random_Forest_list = []
 plt.figure(figsize=(12, 10))
 for depth in tqdm(max_depth):
     for estimator in n_estimators:
-        R2_random_forest, MSE_random_forest = Random_Forest_Regression(X, y, depth, estimator, 'plot')
+        R2_random_forest, MSE_random_forest = Random_Forest_Regression(X, y, depth, estimator, 'plot', sensor_name,
+                                                                       score_name)
         Results_Random_Forest_list.append([depth, estimator, R2_random_forest, MSE_random_forest])
 
 plt.show()
@@ -574,7 +242,8 @@ Results_Decision_Tree_list = []
 plt.figure(figsize=(12, 10))
 for depth in tqdm(max_depth):
     for estimator in n_estimators:
-        R2_decision_tree, MSE_decision_tree = Decision_Tree_Regression(X, y, depth, estimator, 'plot')
+        R2_decision_tree, MSE_decision_tree = Decision_Tree_Regression(X, y, depth, estimator, 'plot', sensor_name,
+                                                                       score_name)
         Results_Decision_Tree_list.append([depth, estimator, R2_decision_tree, MSE_decision_tree])
 
 plt.show()
@@ -601,7 +270,7 @@ for nodes in tqdm(number_of_nodes):
             for epochs in number_of_epochs:
                 for regularization in regularization_penalty:
                     R2_ANN, MSE_ANN, training_history = ANN(X, y, nodes, layers, dropout, epochs, regularization,
-                                                            'show')
+                                                            'show', sensor_name, score_name)
                     Results_ANN_list.append([nodes, layers, dropout, epochs, regularization, R2_ANN, MSE_ANN])
 
 # plt.show()
@@ -619,15 +288,14 @@ Results_ANN.sort_values(['R2_ANN'], ascending=False)
 degree_range_regression = 8
 Results_regression_list = []
 
-
 plt.figure(figsize=(12, 10))
-for deg in range(2, degree_range_regression):
-    R2_regression, MSE_regression = Regression(X, y, sensor_name, score_name, deg,
+for degree in range(2, degree_range_regression):
+    R2_regression, MSE_regression = Regression(X, y, sensor_name, score_name, degree,
                                                'plot')
-    Results_regression_list.append([deg, R2_regression, MSE_regression])
+    Results_regression_list.append([degree, R2_regression, MSE_regression])
 
 plt.show()
-Results_regression = pd.DataFrame(Results_regression_list, columns=['deg', 'R2_regression', 'MSE_regression'])
+Results_regression = pd.DataFrame(Results_regression_list, columns=['degree', 'R2_regression', 'MSE_regression'])
 Results_regression.sort_values(['R2_regression'], ascending=False)
 # %%
 # Spline Regression
@@ -636,11 +304,11 @@ quantiles_in_spline_regression = (0.25, 0.5, 0.75)
 Results_splines_list = []
 
 plt.figure(figsize=(12, 10))
-for deg in range(2, degree_range_spline):
-    R2_spline, MSE_spline = Spline_Regression(X, y, sensor_name, score_name, deg,
+for degree in range(2, degree_range_spline):
+    R2_spline, MSE_spline = Spline_Regression(X, y, sensor_name, score_name, degree,
                                               quantiles_in_spline_regression, 'plot')
-    Results_splines_list.append([deg, R2_spline, MSE_spline])
+    Results_splines_list.append([degree, R2_spline, MSE_spline])
 
 plt.show()
-Results_splines = pd.DataFrame(Results_splines_list, columns=['deg', 'R2_spline', 'MSE_spline'])
+Results_splines = pd.DataFrame(Results_splines_list, columns=['degree', 'R2_spline', 'MSE_spline'])
 Results_splines.sort_values(['R2_spline'], ascending=False)
