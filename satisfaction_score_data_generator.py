@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
 import math
-
 import pywt
 
 
@@ -30,9 +29,9 @@ def HI_calculation(sensor_temperature, sensor_humidity, number_of_samples):
     return heat_index
 
 
-def generate_satisfaction_scores(generated_data, number_of_samples):
+def generate_satisfaction_scores(synthetic_data, number_of_samples):
     """
-    :param generated_data: array of generated sensor measurements
+    :param synthetic_data: array of generated sensor measurements
     :param number_of_samples: number of generated measurements
     :return: array with sensors and generated satisfaction scores
     """
@@ -40,114 +39,115 @@ def generate_satisfaction_scores(generated_data, number_of_samples):
     for cell in range(number_of_samples):
 
         ### Temperature
-        if (generated_data[cell, 0] > 17) and (generated_data[cell, 0] <= 29):
-            generated_data[cell, 6] = np.random.uniform(0.2, 0.4)
+        if (synthetic_data[cell, 0] > 17) and (synthetic_data[cell, 0] <= 29):
+            synthetic_data[cell, 6] = np.random.uniform(0.2, 0.4)
 
-        if (generated_data[cell, 0] > 19) and (generated_data[cell, 0] <= 27):
-            generated_data[cell, 6] = np.random.uniform(0.4, 0.6)
+        if (synthetic_data[cell, 0] > 19) and (synthetic_data[cell, 0] <= 27):
+            synthetic_data[cell, 6] = np.random.uniform(0.4, 0.6)
 
-        if (generated_data[cell, 0] > 21) and (generated_data[cell, 0] <= 25):
-            generated_data[cell, 6] = np.random.uniform(0.6, 0.8)
+        if (synthetic_data[cell, 0] > 21) and (synthetic_data[cell, 0] <= 25):
+            synthetic_data[cell, 6] = np.random.uniform(0.6, 0.8)
 
-        if (generated_data[cell, 0] > 22) and (generated_data[cell, 0] <= 24):
-            generated_data[cell, 6] = np.random.uniform(0.8, 1)
+        if (synthetic_data[cell, 0] > 22) and (synthetic_data[cell, 0] <= 24):
+            synthetic_data[cell, 6] = np.random.uniform(0.8, 1)
 
         ### Humidity
-        if (generated_data[cell, 1] > 15) and (generated_data[cell, 1] <= 85):
-            generated_data[cell, 7] = np.random.uniform(0.2, 0.4)
+        if (synthetic_data[cell, 1] > 15) and (synthetic_data[cell, 1] <= 85):
+            synthetic_data[cell, 7] = np.random.uniform(0.2, 0.4)
 
-        if (generated_data[cell, 1] > 20) and (generated_data[cell, 1] <= 80):
-            generated_data[cell, 7] = np.random.uniform(0.4, 0.6)
+        if (synthetic_data[cell, 1] > 20) and (synthetic_data[cell, 1] <= 80):
+            synthetic_data[cell, 7] = np.random.uniform(0.4, 0.6)
 
-        if (generated_data[cell, 1] > 25) and (generated_data[cell, 1] <= 75):
-            generated_data[cell, 7] = np.random.uniform(0.6, 0.8)
+        if (synthetic_data[cell, 1] > 25) and (synthetic_data[cell, 1] <= 75):
+            synthetic_data[cell, 7] = np.random.uniform(0.6, 0.8)
 
-        if (generated_data[cell, 1] > 30) and (generated_data[cell, 1] <= 70):
-            generated_data[cell, 7] = np.random.uniform(0.8, 1)
+        if (synthetic_data[cell, 1] > 30) and (synthetic_data[cell, 1] <= 70):
+            synthetic_data[cell, 7] = np.random.uniform(0.8, 1)
 
         ### Apparent temperature - Heat Index (Temperature accounted for humidity)
-        if (generated_data[cell, 2] > 17) and (generated_data[cell, 2] <= 29):
-            generated_data[cell, 8] = np.random.uniform(0.2, 0.4)
+        if (synthetic_data[cell, 2] > 17) and (synthetic_data[cell, 2] <= 29):
+            synthetic_data[cell, 8] = np.random.uniform(0.2, 0.4)
 
-        if (generated_data[cell, 2] > 19) and (generated_data[cell, 2] <= 27):
-            generated_data[cell, 8] = np.random.uniform(0.4, 0.6)
+        if (synthetic_data[cell, 2] > 19) and (synthetic_data[cell, 2] <= 27):
+            synthetic_data[cell, 8] = np.random.uniform(0.4, 0.6)
 
-        if (generated_data[cell, 2] > 21) and (generated_data[cell, 2] <= 25):
-            generated_data[cell, 8] = np.random.uniform(0.6, 0.8)
+        if (synthetic_data[cell, 2] > 21) and (synthetic_data[cell, 2] <= 25):
+            synthetic_data[cell, 8] = np.random.uniform(0.6, 0.8)
 
-        if (generated_data[cell, 2] > 22) and (generated_data[cell, 2] <= 24):
-            generated_data[cell, 8] = np.random.uniform(0.8, 1)
+        if (synthetic_data[cell, 2] > 22) and (synthetic_data[cell, 2] <= 24):
+            synthetic_data[cell, 8] = np.random.uniform(0.8, 1)
 
         ### CO2
-        if generated_data[cell, 3] <= 1800:
-            generated_data[cell, 9] = np.random.uniform(0.1, 0.2)
+        if synthetic_data[cell, 3] <= 1800:
+            synthetic_data[cell, 9] = np.random.uniform(0.1, 0.2)
 
-        if (generated_data[cell, 3] > 1200) and (generated_data[cell, 3] <= 1500):
-            generated_data[cell, 9] = np.random.uniform(0.2, 0.4)
+        if (synthetic_data[cell, 3] > 1200) and (synthetic_data[cell, 3] <= 1500):
+            synthetic_data[cell, 9] = np.random.uniform(0.2, 0.4)
 
-        if (generated_data[cell, 3] > 1000) and (generated_data[cell, 3] <= 1200):
-            generated_data[cell, 9] = np.random.uniform(0.4, 0.6)
+        if (synthetic_data[cell, 3] > 1000) and (synthetic_data[cell, 3] <= 1200):
+            synthetic_data[cell, 9] = np.random.uniform(0.4, 0.6)
 
-        if (generated_data[cell, 3] > 800) and (generated_data[cell, 3] <= 1000):
-            generated_data[cell, 9] = np.random.uniform(0.6, 0.8)
+        if (synthetic_data[cell, 3] > 800) and (synthetic_data[cell, 3] <= 1000):
+            synthetic_data[cell, 9] = np.random.uniform(0.6, 0.8)
 
-        if (generated_data[cell, 3] > 650) and (generated_data[cell, 3] <= 800):
-            generated_data[cell, 9] = np.random.uniform(0.8, 0.9)
+        if (synthetic_data[cell, 3] > 650) and (synthetic_data[cell, 3] <= 800):
+            synthetic_data[cell, 9] = np.random.uniform(0.8, 0.9)
 
-        if generated_data[cell, 3] <= 650:
-            generated_data[cell, 9] = np.random.uniform(0.9, 1)
+        if synthetic_data[cell, 3] <= 650:
+            synthetic_data[cell, 9] = np.random.uniform(0.9, 1)
 
         ### Light
-        if generated_data[cell, 4] >= 300:
-            generated_data[cell, 10] = np.random.uniform(0.2, 0.4)
+        if synthetic_data[cell, 4] >= 300:
+            synthetic_data[cell, 10] = np.random.uniform(0.2, 0.4)
 
-        if generated_data[cell, 4] >= 450:
-            generated_data[cell, 10] = np.random.uniform(0.4, 0.6)
+        if synthetic_data[cell, 4] >= 450:
+            synthetic_data[cell, 10] = np.random.uniform(0.4, 0.6)
 
-        if generated_data[cell, 4] >= 600:
-            generated_data[cell, 10] = np.random.uniform(0.6, 0.8)
+        if synthetic_data[cell, 4] >= 600:
+            synthetic_data[cell, 10] = np.random.uniform(0.6, 0.8)
 
-        if generated_data[cell, 4] >= 1000:
-            generated_data[cell, 10] = np.random.uniform(0.8, 1)
+        if synthetic_data[cell, 4] >= 1000:
+            synthetic_data[cell, 10] = np.random.uniform(0.8, 1)
 
         ### Noise
-        if generated_data[cell, 5] <= 70:
-            generated_data[cell, 11] = np.random.uniform(0.2, 0.4)
+        if synthetic_data[cell, 5] <= 70:
+            synthetic_data[cell, 11] = np.random.uniform(0.2, 0.4)
 
-        if generated_data[cell, 5] <= 65:
-            generated_data[cell, 11] = np.random.uniform(0.4, 0.6)
+        if synthetic_data[cell, 5] <= 65:
+            synthetic_data[cell, 11] = np.random.uniform(0.4, 0.6)
 
-        if generated_data[cell, 5] <= 60:
-            generated_data[cell, 11] = np.random.uniform(0.6, 0.8)
+        if synthetic_data[cell, 5] <= 60:
+            synthetic_data[cell, 11] = np.random.uniform(0.6, 0.8)
 
-        if generated_data[cell, 5] <= 55:
-            generated_data[cell, 11] = np.random.uniform(0.8, 1)
+        if synthetic_data[cell, 5] <= 55:
+            synthetic_data[cell, 11] = np.random.uniform(0.8, 1)
 
-    return generated_data
+    return synthetic_data
 
-def generate_null_model(generated_data, number_of_samples):
+
+def generate_null_model(generated_data_for_null, number_of_samples):
     """
-    :param generated_data: array of generated sensor measurements
+    :param generated_data_for_null: array of generated sensor measurements
     :param number_of_samples: number of generated measurements
     :return: array with sensors and random satisfaction scores
     """
 
     for cell in range(number_of_samples):
+        ### Temperature
+        generated_data_for_null[cell, 6] = np.random.uniform(0.1, 1)
+        ### Humidity
+        generated_data_for_null[cell, 7] = np.random.uniform(0.1, 1)
+        ### Heat Index
+        generated_data_for_null[cell, 8] = np.random.uniform(0.1, 1)
+        ### CO2
+        generated_data_for_null[cell, 9] = np.random.uniform(0.1, 1)
+        ### Light
+        generated_data_for_null[cell, 10] = np.random.uniform(0.1, 1)
+        ### Noise
+        generated_data_for_null[cell, 11] = np.random.uniform(0.1, 1)
 
-    ### Temperature
-        generated_data[cell, 6] = np.random.uniform(0.2, 1)
-    ### Humidity
-        generated_data[cell, 7] = np.random.uniform(0.2, 1)
-    ### Heat Index
-        generated_data[cell, 8] = np.random.uniform(0.2, 1)
-    ### CO2
-        generated_data[cell, 9] = np.random.uniform(0.2, 1)
-    ### Light
-        generated_data[cell, 10] = np.random.uniform(0.2, 1)
-    ### Noise
-        generated_data[cell, 11] = np.random.uniform(0.2, 1)
+    return generated_data_for_null
 
-    return generated_data
 
 def smoothing(y_values: np.ndarray, number_of_samples, wavelet):
     """
@@ -182,24 +182,24 @@ def generate_dataset_with_sensor_readings_and_satisfaction_scores(number_of_samp
     """
     # Generate a random number from an uniform distribution in a range given by KPIs
 
-    sensor_temperature = [np.random.uniform(15, 32) for x in range(number_of_samples)]
-    sensor_humidity = [np.random.uniform(20, 85) for x in range(number_of_samples)]
+    sensor_temperature = [np.random.uniform(15, 32) for _ in range(number_of_samples)]
+    sensor_humidity = [np.random.uniform(20, 85) for _ in range(number_of_samples)]
     sensor_heat_index = HI_calculation(sensor_temperature, sensor_humidity, number_of_samples)
-    sensor_co2 = [np.random.uniform(250, 2000) for x in range(number_of_samples)]
-    sensor_light = [np.random.uniform(100, 1500) for x in range(number_of_samples)]
-    sensor_noise = [np.random.uniform(30, 75) for x in range(number_of_samples)]
+    sensor_co2 = [np.random.uniform(300, 2300) for _ in range(number_of_samples)]
+    sensor_light = [np.random.uniform(40, 1500) for _ in range(number_of_samples)]
+    sensor_noise = [np.random.uniform(30, 75) for _ in range(number_of_samples)]
 
     # Create an ndarray with all generated sensor measurements and fill the new columns of ndarray with the random
     # values between 15% and 20% representing guaranteed minimal satisfaction in each category
 
     generated_data = np.asarray(
         list(zip(sensor_temperature, sensor_humidity, sensor_heat_index, sensor_co2, sensor_light, sensor_noise,
-                 [np.random.uniform(0.1, 0.2) for x in range(number_of_samples)],
-                 [np.random.uniform(0.1, 0.2) for x in range(number_of_samples)],
-                 [np.random.uniform(0.1, 0.2) for x in range(number_of_samples)],
-                 [np.random.uniform(0.1, 0.2) for x in range(number_of_samples)],
-                 [np.random.uniform(0.1, 0.2) for x in range(number_of_samples)],
-                 [np.random.uniform(0.1, 0.2) for x in range(number_of_samples)])), dtype=np.float32)
+                 [np.random.uniform(0.1, 0.2) for _ in range(number_of_samples)],
+                 [np.random.uniform(0.1, 0.2) for _ in range(number_of_samples)],
+                 [np.random.uniform(0.1, 0.2) for _ in range(number_of_samples)],
+                 [np.random.uniform(0.1, 0.2) for _ in range(number_of_samples)],
+                 [np.random.uniform(0.1, 0.2) for _ in range(number_of_samples)],
+                 [np.random.uniform(0.1, 0.2) for _ in range(number_of_samples)])), dtype=np.float32)
 
     generated_data_with_scores = generate_satisfaction_scores(generated_data, number_of_samples)
 

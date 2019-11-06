@@ -24,12 +24,22 @@ from tqdm import tqdm
 import warnings
 warnings.filterwarnings('ignore')
 
+import matplotlib.pylab as pylab
+
+params = {'legend.fontsize': 'x-large',
+          'figure.figsize': (12, 10),
+          'axes.labelsize': 'x-large',
+          'axes.titlesize': 'x-large',
+          'xtick.labelsize': 'x-large',
+          'ytick.labelsize': 'x-large'}
+pylab.rcParams.update(params)
+
 # %%
 
 # Generate dataset with the scores and reading using satisfaction_score_data_generator.py
 # or read CSV
 number_of_samples = 100
-noise_standard_deviation = 0
+noise_standard_deviation = 0.02
 wavelet = 'db8'
 
 satisfaction_vs_sensors, satisfaction_vs_sensors_null = generate_dataset_with_sensor_readings_and_satisfaction_scores(
@@ -71,8 +81,6 @@ sensor_name = f'sensor_{measurement_name}'
 # sensor_name2 = f'sensor_{measurement_name2}'
 # sensor_name3 = f'sensor_{measurement_name3}'
 score_name = f'comfort_score_{measurement_name}'
-
-satisfaction_vs_sensors_sorted = satisfaction_vs_sensors.sort_values([sensor_name])
 
 # Divide the dataset into predictors and outcome
 X = satisfaction_vs_sensors[[sensor_name]]
