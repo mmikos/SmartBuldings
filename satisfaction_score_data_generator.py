@@ -186,7 +186,7 @@ def generate_dataset_with_sensor_readings_and_satisfaction_scores(number_of_samp
     sensor_humidity = [np.random.uniform(20, 85) for _ in range(number_of_samples)]
     sensor_heat_index = HI_calculation(sensor_temperature, sensor_humidity, number_of_samples)
     sensor_co2 = [np.random.uniform(300, 2300) for _ in range(number_of_samples)]
-    sensor_light = [np.random.uniform(40, 1500) for _ in range(number_of_samples)]
+    sensor_light = [np.random.uniform(50, 1500) for _ in range(number_of_samples)]
     sensor_noise = [np.random.uniform(30, 75) for _ in range(number_of_samples)]
 
     # Create an ndarray with all generated sensor measurements and fill the new columns of ndarray with the random
