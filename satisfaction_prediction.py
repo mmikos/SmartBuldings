@@ -39,11 +39,11 @@ pylab.rcParams.update(params)
 # Generate dataset with the scores and reading using satisfaction_score_data_generator.py
 # or read CSV
 number_of_samples = 100
-noise_standard_deviation = 0.02
+signal_to_noise_ratio = 1
 wavelet = 'db8'
 
 satisfaction_vs_sensors, satisfaction_vs_sensors_null = generate_dataset_with_sensor_readings_and_satisfaction_scores(
-    number_of_samples, noise_standard_deviation, wavelet)
+    number_of_samples, signal_to_noise_ratio, wavelet)
 # satisfaction_vs_sensors = pd.read_csv('satisfaction_vs_sensors.csv')
 # satisfaction_vs_sensors.to_csv('satisfaction_vs_sensors_smoothing.csv', sep=',')
 # %%

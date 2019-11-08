@@ -173,7 +173,7 @@ def smoothing(y_values: np.ndarray, number_of_samples, wavelet):
     return y_values[:number_of_samples]
 
 
-def generate_dataset_with_sensor_readings_and_satisfaction_scores(number_of_samples, noise_standard_deviation, wavelet):
+def generate_dataset_with_sensor_readings_and_satisfaction_scores(number_of_samples, snr, wavelet):
     """
     :param number_of_samples: number of generated measurements
     :param noise_standard_deviation: standard deviation of a noise added to the generated sample
@@ -207,10 +207,27 @@ def generate_dataset_with_sensor_readings_and_satisfaction_scores(number_of_samp
         generated_data_with_scores = generated_data_with_scores[generated_data_with_scores[:, i - 6].argsort()]
         generated_data_with_scores[:, i] = smoothing(generated_data_with_scores[:, i], number_of_samples, wavelet)
 
-    mean = 0
-    noise = np.random.normal(mean, noise_standard_deviation, [number_of_samples, 6])
+    # mean = 0
+    # noise = np.random.normal(mean, noise_standard_deviation, [number_of_samples, 6])
 
-    generated_data_with_scores[:, 6:] = generated_data_with_scores[:, 6:] + noise
+    def generate_noise(snr):
+        if snr != 0.0:
+            noise = np.random.normal(size=number_of_samples)
+            # work out the current SNR
+            current_snr = np.mean(generated_data_with_scores[:, 6:]) / np.std(noise)
+            # scale the noise by the snr ratios (smaller noise <=> larger snr)
+            noise *= (current_snr / snr)
+        else:
+            noise = np.zeros(number_of_samples)
+        # return the new signal with noise
+        return noise
+
+    # signal_to_noise_ratio = np.mean(generated_data_with_scores[:, 6:]) / noise_standard_deviation
+
+    signal_to_noise_ratio = generate_noise(snr)
+
+    for i in range(6, 12):
+        generated_data_with_scores[:, i] = generated_data_with_scores[:, i] + signal_to_noise_ratio
 
     # outisde bounds
     generated_data_with_scores[:, 6:][np.where(generated_data_with_scores[:, 6:] > 1)] = np.random.uniform(0.95, 1)

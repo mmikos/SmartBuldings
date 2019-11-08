@@ -77,7 +77,7 @@ date_co2 = date_co2.sort_values(by = ['timestamp(Europe/Berlin)'])
 # plt.legend()
 # plt.show()
 
-data_bricks = pd.read_csv('data_sets/conference_room_sensor_data.csv', sep=',', decimal='.')
+data_bricks = pd.read_csv('data_sets/export.csv', sep=',', decimal='.')
 
 
 def get_single_measurement(data, measurement=str):
@@ -87,12 +87,18 @@ def get_single_measurement(data, measurement=str):
     return measurement_name
 
 
-Temperature = get_single_measurement(data_bricks, 'Temperature')
-Humidity = get_single_measurement(data_bricks, 'Humidity')
-Light = get_single_measurement(data_bricks, 'Light')
-Noise = get_single_measurement(data_bricks, 'Sound')
-Occupancy = get_single_measurement(data_bricks, 'Occupancy')
-Movement = get_single_measurement(data_bricks, 'Motion')
-CO2 = get_single_measurement(data_bricks, 'CarbonDioxide')
+# Temperature = get_single_measurement(data_bricks, 'Temperature')
+# Humidity = get_single_measurement(data_bricks, 'Humidity')
+# Light = get_single_measurement(data_bricks, 'Light')
+# Noise = get_single_measurement(data_bricks, 'Sound')
+# Occupancy = get_single_measurement(data_bricks, 'Occupancy')
+# Movement = get_single_measurement(data_bricks, 'Motion')
+# CO2 = get_single_measurement(data_bricks, 'CarbonDioxide')
 
+measurement_name = data_bricks.loc[data_bricks['PortName'] == 'Occupancy', ['Datetime', 'PortName', 'SpaceName',
+                                                                            'Value']].pivot_table(index='Datetime',
+                                                                                                  columns='SpaceName',
+                                                                                                  values='Value')
+
+measurement_name.to_csv('occupancy_rooms.csv', sep=',')
 print('whatever')
