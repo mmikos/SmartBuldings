@@ -12,7 +12,7 @@ from sklearn.preprocessing import PolynomialFeatures
 from statsmodels.stats.diagnostic import het_breuschpagan
 from statsmodels.stats.diagnostic import het_white
 # Fitting a model
-from Artificial_Neural_Network import ANN
+# from Artificial_Neural_Network import ANN
 from Decision_Tree_Regression import Decision_Tree_Regression
 from Random_Forest_Regression import Random_Forest_Regression
 from Regression import Regression
@@ -26,20 +26,20 @@ warnings.filterwarnings('ignore')
 
 import matplotlib.pylab as pylab
 
-params = {'legend.fontsize': 'x-large',
+params = {'legend.fontsize': 'xx-large',
           'figure.figsize': (12, 10),
-          'axes.labelsize': 'x-large',
-          'axes.titlesize': 'x-large',
-          'xtick.labelsize': 'x-large',
-          'ytick.labelsize': 'x-large'}
+          'axes.labelsize': 'xx-large',
+          'axes.titlesize': 'xx-large',
+          'xtick.labelsize': 'xx-large',
+          'ytick.labelsize': 'xx-large'}
 pylab.rcParams.update(params)
 
 # %%
 
 # Generate dataset with the scores and reading using satisfaction_score_data_generator.py
 # or read CSV
-number_of_samples = 100
-signal_to_noise_ratio = 1
+number_of_samples = 1000
+signal_to_noise_ratio = 3.5
 wavelet = 'db8'
 
 satisfaction_vs_sensors, satisfaction_vs_sensors_null = generate_dataset_with_sensor_readings_and_satisfaction_scores(
@@ -54,27 +54,27 @@ summary_statistics = satisfaction_vs_sensors.describe()
 no_of_columns = np.shape(satisfaction_vs_sensors)[1]
 measurements = satisfaction_vs_sensors.columns.values
 
-plt.figure(figsize=(4.5*no_of_columns,5*no_of_columns))
-for i in range(0,len(measurements)):
-    plt.subplot(no_of_columns + 1, no_of_columns, i + 1)
-    sns.distplot(satisfaction_vs_sensors[measurements[i]],kde=True)
-
-# Display Box Plot
-plt.figure(figsize=(no_of_columns,5*no_of_columns))
-for i in range(0,len(measurements)):
-    plt.subplot(no_of_columns + 1, no_of_columns, i + 1)
-    sns.boxplot(satisfaction_vs_sensors[measurements[i]],color='lightblue',orient='v')
-    plt.tight_layout()
-
-# Plot the correlation matrix
-plt.figure(figsize=(12, 10))
-sns.heatmap(satisfaction_vs_sensors.corr(), cmap='Blues', annot=True)
-plt.show()
+# plt.figure(figsize=(4.5*no_of_columns,5*no_of_columns))
+# for i in range(0,len(measurements)):
+#     plt.subplot(no_of_columns + 1, no_of_columns, i + 1)
+#     sns.distplot(satisfaction_vs_sensors[measurements[i]],kde=True)
+#
+# # Display Box Plot
+# plt.figure(figsize=(no_of_columns,5*no_of_columns))
+# for i in range(0,len(measurements)):
+#     plt.subplot(no_of_columns + 1, no_of_columns, i + 1)
+#     sns.boxplot(satisfaction_vs_sensors[measurements[i]],color='lightblue',orient='v')
+#     plt.tight_layout()
+#
+# # Plot the correlation matrix
+# plt.figure(figsize=(12, 10))
+# sns.heatmap(satisfaction_vs_sensors.corr(), cmap='Blues', annot=True)
+# plt.show()
 # %%
 # Specify the name of the measurement/score of interest
 # Choose from: temperature, humidity, heat_index, air, light, noise
 
-measurement_name = 'air'
+measurement_name = 'noise'
 # measurement_name2 = 'humidity'
 # measurement_name3 = 'temperature'
 sensor_name = f'sensor_{measurement_name}'
@@ -87,13 +87,21 @@ X = satisfaction_vs_sensors[[sensor_name]]
 # X = satisfaction_vs_sensors[[sensor_name, sensor_name2, sensor_name3]]
 y = satisfaction_vs_sensors[[score_name]]
 
+Leesman_Benchmark = pd.DataFrame([[0.31, 0.42, 0.59, 0.31], [0.43, 0.62, 0.75, 0.44]],
+                                 columns = ['heat_index', 'air', 'light', 'noise'],
+                                 index = ['Leesman Benchmark', 'Leesman+'])
+
 # Plot the chosen variables
 X_sorted, y_sorted = sort_for_plotting(X, y)
+
 plt.figure(figsize=(12, 10))
 plt.plot(X_sorted, y_sorted)
+plt.axhline(y = Leesman_Benchmark[f"{measurement_name}"][1], color='g', label = "Leesman +")
+plt.axhline(y = Leesman_Benchmark[f"{measurement_name}"][0], color='r', label = "Leesman Benchmark")
 plt.xlabel(f"{sensor_name}")
 plt.ylabel(f"{score_name}")
 plt.title(f'Satisfaction vs indoor conditions (Generated data)')
+plt.legend()
 plt.show()
 # %%
 # H0: Data is normally distributed

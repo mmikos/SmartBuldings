@@ -227,7 +227,7 @@ def generate_dataset_with_sensor_readings_and_satisfaction_scores(number_of_samp
     signal_to_noise_ratio = generate_noise(snr)
 
     for i in range(6, 12):
-        generated_data_with_scores[:, i] = generated_data_with_scores[:, i] + signal_to_noise_ratio
+        generated_data_with_scores[:, i] = generated_data_with_scores[:, i] - np.abs(signal_to_noise_ratio)
 
     # outisde bounds
     generated_data_with_scores[:, 6:][np.where(generated_data_with_scores[:, 6:] > 1)] = np.random.uniform(0.95, 1)
