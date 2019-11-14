@@ -5,8 +5,8 @@ import math
 import matplotlib.pyplot as plt
 # Visualization
 import matplotlib.pyplot as plt
-import missingno
-import seaborn as sns
+from datetime import datetime
+from datetime import timedelta
 
 # Preprocessing
 from sklearn.preprocessing import StandardScaler
@@ -31,18 +31,18 @@ warnings.filterwarnings('ignore')
 # read the dataset
 measure = pd.read_csv('data_sets/OLY-A-417.csv', sep=';', decimal='.')
 
-room_5 = pd.read_csv('data_sets/Room_55.csv', sep=';', decimal='.')
+room_5 = pd.read_csv('data_sets/Room_5.csv', sep=';', decimal='.')
 
 co2 = measure[['timestamp(Europe/Berlin)', 'co2']]
 
-date_co2 = co2[(co2['timestamp(Europe/Berlin)'] >= '29/10/2019') & (co2['timestamp(Europe/Berlin)'] <= '31/10/2019')]
+date_co2 = co2[(co2['timestamp(Europe/Berlin)'] >= '24/10/2019 07:40') & (co2['timestamp(Europe/Berlin)'] <= '25/10/2019')]
 
 no_occupants = room_5[['date_time', 'no_occupants']]
-# measure = pd.read_csv('data_sets/OLY-A-415.csv', sep=',', decimal='.')
-date_no_occupants = no_occupants[(no_occupants['date_time'] >= '29/10/2019') & (no_occupants['date_time'] <= '31/10/2019')]
+# # measure = pd.read_csv('data_sets/OLY-A-415.csv', sep=',', decimal='.')
+date_no_occupants = no_occupants[(no_occupants['date_time'] >= '24/10/2019') & (no_occupants['date_time'] <= '25/09/2019')]
 
 date_no_occupants = date_no_occupants.sort_values(by = ['date_time'])
-date_co2 = date_co2.sort_values(by = ['timestamp(Europe/Berlin)'])
+# date_co2 = date_co2.sort_values(by = ['timestamp(Europe/Berlin)'])
 
 # plt.figure(figsize=(12, 10))
 # plt.plot(date_no_occupants.iloc[:, 0], date_no_occupants.iloc[:, 1], label = 'Occupancy')
@@ -55,36 +55,41 @@ date_co2 = date_co2.sort_values(by = ['timestamp(Europe/Berlin)'])
 # axs[1].plot(date_co2.iloc[:, 0], date_co2.iloc[:, 1])
 # plt.show()
 
-# plt.figure(figsize=(12, 10))
-# fig, ax1 = plt.subplots()
-# color = 'tab:red'
-# ax1.set_xlabel('time')
-# ax1.set_ylabel('Occupancy', color=color)
+data_bricks = pd.read_csv('data_sets/export_room3.csv', sep=';', decimal='.')
+data_bricks = data_bricks.sort_values(by = ['Datetime'])
+# data_bricks = data_bricks.groupby(['Datetime']).mean()
+data_bricks.groupby(['Datetime', 'SpaceName'])['value'].mean().reset_index()
+
+data_bricks = data_bricks[(data_bricks['Datetime'] >= '24/10/2019') & (data_bricks['Datetime'] <= '25/10/2019 ')]
+
+# data_bricks2 = data_bricks.loc[data_bricks['SpaceName'] == 'Room 4.3', ['Datetime', 'SpaceName', 'Value']]
+
+plt.figure(figsize=(12, 10))
+fig, ax1 = plt.subplots()
+color = 'tab:red'
+ax1.set_xlabel('time')
+ax1.set_ylabel('Occupancy', color=color)
+
+ax1.plot(pd.to_datetime(data_bricks.iloc[:, 0], format='%d/%m/%Y %H:%M').dt.time , data_bricks.iloc[:, 4], color=color)
+ax1.plot(pd.to_datetime(date_no_occupants.iloc[:, 0], format='%d/%m/%Y %H:%M').dt.time, date_no_occupants.iloc[:, 1], color='green')
+ax1.tick_params(axis='y', labelcolor=color)
+
+ax2 = ax1.twinx()
+color = 'tab:blue'
+ax2.set_ylabel('CO2', color=color)
+
+ax2.plot(pd.to_datetime(date_co2.iloc[:, 0], format='%d/%m/%Y %H:%M').dt.time, date_co2.iloc[:, 1].shift(-1), color=color)
+ax2.tick_params(axis='y', labelcolor=color)
+fig.tight_layout()
+plt.title(f'Occupancy')
+plt.legend()
+plt.show()
+
+# def get_single_measurement(data, measurement=str):
+#     measurement_name = data.loc[data['PortName'] == f'{measurement}', ['Datetime', 'PortName', 'Value']].pivot_table(
+#         index='Datetime', columns='PortName', values='Value')
 #
-# ax1.plot(date_no_occupants.iloc[:, 0], date_no_occupants.iloc[:, 1], color=color)
-# ax1.tick_params(axis='y', labelcolor=color)
-#
-# ax2 = ax1.twinx()
-# color = 'tab:blue'
-# ax2.set_ylabel('CO2', color=color)
-#
-# ax2.plot(date_co2.iloc[:, 0], date_co2.iloc[:, 1], color=color)
-# ax2.tick_params(axis='y', labelcolor=color)
-# fig.tight_layout()
-# # plt.xlabel(f"{sensor_name}")
-# # plt.ylabel(f"{score_name}")
-# plt.title(f'Occupancy')
-# plt.legend()
-# plt.show()
-
-data_bricks = pd.read_csv('data_sets/export.csv', sep=',', decimal='.')
-
-
-def get_single_measurement(data, measurement=str):
-    measurement_name = data.loc[data['PortName'] == f'{measurement}', ['Datetime', 'PortName', 'Value']].pivot_table(
-        index='Datetime', columns='PortName', values='Value')
-
-    return measurement_name
+#     return measurement_name
 
 
 # Temperature = get_single_measurement(data_bricks, 'Temperature')
@@ -95,10 +100,9 @@ def get_single_measurement(data, measurement=str):
 # Movement = get_single_measurement(data_bricks, 'Motion')
 # CO2 = get_single_measurement(data_bricks, 'CarbonDioxide')
 
-measurement_name = data_bricks.loc[data_bricks['PortName'] == 'Occupancy', ['Datetime', 'PortName', 'SpaceName',
-                                                                            'Value']].pivot_table(index='Datetime',
-                                                                                                  columns='SpaceName',
-                                                                                                  values='Value')
+# measurement_name = data_bricks.loc[data_bricks['PortName'] == 'Occupancy', ['Datetime', 'PortName', 'SpaceName',
+#                                                                             'Value']].pivot_table(index='Datetime',
+#                                                                                                   columns='SpaceName',
+#                                                                                                   values='Value')
 
-measurement_name.to_csv('occupancy_rooms.csv', sep=',')
 print('whatever')
