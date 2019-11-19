@@ -22,6 +22,7 @@ import warnings
 
 warnings.filterwarnings('ignore')
 
+
 data = pd.read_csv('raw_data_sensor.csv', sep=',', decimal='.')
 # data = pd.read_csv('data_measurement.csv')
 
@@ -41,7 +42,6 @@ def get_single_measurement(data, measurement = str):
     measurement_name = data.loc[data['PortName'] == f'{measurement}', ['Datetime', 'SpaceName', 'DeviceName', 'PortName', 'Value']].pivot_table(index = ['Datetime'], columns = ['DeviceName'], values = ['Value'])
     measurement_name = measurement_name.fillna(0)
     return measurement_name
-
 
 
 Temperature = get_single_measurement(data, 'Temperature')

@@ -7,10 +7,12 @@ import matplotlib.pyplot as plt
 import matplotlib.pyplot as plt
 from datetime import datetime
 from datetime import timedelta
-
+import requests
 # Preprocessing
+from sklearn.metrics import r2_score
 from sklearn.preprocessing import StandardScaler
 from sklearn import preprocessing
+from datetime import datetime
 
 # Models
 from sklearn.model_selection import train_test_split
@@ -28,8 +30,17 @@ params = {'legend.fontsize': 'x-large',
 pylab.rcParams.update(params)
 
 import warnings
-
+import urllib
 warnings.filterwarnings('ignore')
+
+start = urllib.parse.quote('18.11.2019 09:30')
+end = urllib.parse.quote('19.11.2019 09:30')
+
+response = requests.get("https://edgetech.avuity.com/VuSpace/api/report-occupancy-by-area/index?access-token"
+                        f"=Futo24i1PcUZ_HnZ&startTs={start}&endTs={end}")
+
+print(response.status_code)
+print(response.json())
 
 # read the dataset
 measure = pd.read_csv('data_sets/OLY-A-417.csv', sep=';', decimal='.')
@@ -137,8 +148,8 @@ plt.show()
 scaler_predictors = StandardScaler()
 scaler_output = StandardScaler()
 # reg_data2 = preprocessing.normalize(reg_data_no_na, norm='l2')
-X = scaler_predictors.fit_transform(reg_data_no_na[['temp', 'humid', 'light', 'noise']])
-y = scaler_output.fit_transform(reg_data_no_na[['co2']])
+X = reg_data_no_na[['temp', 'noise']]
+y = reg_data_no_na[['co2']]
 # X = reg_data_no_na[['temp', 'humid', 'light', 'noise']]
 # y = reg_data_no_na[['co2']]
 
@@ -150,22 +161,31 @@ degree = 1
 polynomial_features = PolynomialFeatures(degree=degree)
 sensor_values_polynomial = polynomial_features.fit_transform(X)
 
-# Fit the model
-model = sm.OLS(y, sensor_values_polynomial).fit()
-# fit_regularized(alpha=0.2, L1_wt=0.5)
+X_train, X_test, y_train, y_test = train_test_split(sensor_values_polynomial, y, test_size=1 / 3, random_state=42)
 
-score_values_predicted = model.predict(sensor_values_polynomial)
+# Fit the model
+model = sm.OLS(y_train, X_train).fit()
+# fit_regularized(alpha=0.2, L1_wt=0.5)
+test0 = np.array([[1], [22], [60]]).T
+score_values_predicted = model.predict(X_test)
+
+rsquared_OLS = r2_score(y_test, score_values_predicted)
 
 print(model.summary())
 
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=1 / 3, random_state=42)
+
 clf = linear_model.Lasso(alpha=0.1)
-clf.fit(X, y)
+clf.fit(X_train, y_train)
 
 params = np.append(clf.intercept_, clf.coef_)
-predictions = clf.predict(X)
+predictions = clf.predict(X_test)
 
-newX = pd.DataFrame({"Constant": np.ones(len(X))}).join(pd.DataFrame(X))
-MSE = (np.sum((y.T-predictions.T)**2))/(len(newX)-len(newX.columns))
+test = np.array([[22], [45], [52]]).T
+# newX = pd.concat([pd.DataFrame({"Constant": np.ones(len(X_test))}), X_test], axis=1)
+newX = pd.DataFrame({"Constant": np.ones(len(X_test))}).join(X_test.reset_index(drop=True))
+# MSE = (np.sum((y_test.T-predictions.T)**2))/(len(newX)-len(newX.columns))
+MSE = (sum((y_test.T-predictions.T)**2))/(len(newX)-len(newX.columns))
 
 var_b = MSE*(np.linalg.inv(np.dot(newX.T, newX)).diagonal())
 sd_b = np.sqrt(var_b)
@@ -183,17 +203,18 @@ myDF3["Coefficients"], myDF3["Standard Errors"], myDF3["t values"], myDF3["Proba
                                                                                              p_values]
 print(myDF3)
 
-rsquared = clf.score(X, y)
+
+rsquared = r2_score(y_test, predictions)
 F = rsquared / ((1 - rsquared) / (len(y) - 1 - 1))
 p_value = stats.f.sf(F, 1, len(y) - 1 - 1)
 
-X = scaler_predictors.inverse_transform(X)
-y = scaler_output.inverse_transform(y)
-predictions = scaler_output.inverse_transform(predictions.reshape(-1, 1))
+# X = scaler_predictors.inverse_transform(X)
+# y = scaler_output.inverse_transform(y)
+# predictions = scaler_output.inverse_transform(predictions.reshape(-1, 1))
 
-X_test_sorted, y_predicted_sorted = sort_for_plotting(X[:, 0], predictions)
+X_test_sorted, y_predicted_sorted = sort_for_plotting(X_test.iloc[:, 0], predictions)
 # Plot original data
-plt.scatter(X[:, 0], y, color='red')
+plt.scatter(X_test.iloc[:, 0], y_test, color='red')
 # plt.scatter(X[:, 1], y, color='blue')
 # plt.scatter(X[:, 2], y, color='green')
 # plt.scatter(X[:, 3], y, color='yellow')
