@@ -7,8 +7,11 @@ import matplotlib.pyplot as plt
 import matplotlib.pyplot as plt
 from datetime import datetime
 from datetime import timedelta
+from pandas.io.json import json_normalize
+import json
 import requests
 # Preprocessing
+from pandas.io.json import json_normalize
 from sklearn.metrics import r2_score
 from sklearn.preprocessing import StandardScaler
 from sklearn import preprocessing
@@ -33,48 +36,73 @@ import warnings
 import urllib
 warnings.filterwarnings('ignore')
 
-start = urllib.parse.quote('18.11.2019 09:30')
-end = urllib.parse.quote('19.11.2019 09:30')
+start = urllib.parse.quote('18.11.2019 09:00')
+end = urllib.parse.quote('20.11.2019 17:30')
 
 response = requests.get("https://edgetech.avuity.com/VuSpace/api/report-occupancy-by-area/index?access-token"
                         f"=Futo24i1PcUZ_HnZ&startTs={start}&endTs={end}")
 
-print(response.status_code)
-print(response.json())
+# print(response.status_code)
+
+occupancy_json = response.json()
+occupancy_str = json.dumps(occupancy_json)
+occupancy_data_dict = json.loads(occupancy_str)
+occupancy_data_normalised = json_normalize(occupancy_data_dict['items'])
+occupancy = pd.DataFrame.from_dict(occupancy_data_normalised)
+
+room = 'ROOM 3'
+
+occupancy_selected = occupancy.loc[occupancy['areaName'] == f'{room}', ['startTs', 'occupancy']]
+
+date_occupancy_selected = occupancy_selected[(occupancy_selected['startTs'] >= '2019-11-19 09:00')
+                                             & (occupancy_selected['startTs'] <= '2019-11-19 17:35')]
+# date_occupancy_selected.iloc[:, 0] = pd.to_datetime(date_occupancy_selected.iloc[:, 0], format='%Y-%m-%d %H:%M')
+
+date_occupancy_selected2 = date_occupancy_selected.set_index('startTs')
+
+date_occupancy_selected2.index = pd.to_datetime(date_occupancy_selected2.index)
+
+date_occupancy_agg = date_occupancy_selected2.resample('15T').max().ffill().astype(int)
 
 # read the dataset
-measure = pd.read_csv('data_sets/OLY-A-417.csv', sep=';', decimal='.')
+measurements = pd.read_csv('data_sets/19_20/OLY-A-415.csv', sep=',', decimal='.')
 
-room_5 = pd.read_csv('data_sets/Room_5.csv', sep=';', decimal='.')
+co2 = measurements[['timestamp(Europe/Berlin)', 'co2']]
 
-co2 = measure[['timestamp(Europe/Berlin)', 'co2']]
+# date_co2 = co2[(co2['timestamp(Europe/Berlin)'] >= '19/11/2019 09:00')
+#                & (co2['timestamp(Europe/Berlin)'] <= '20/10/2019 17:30')]
 
-date_co2 = co2[(co2['timestamp(Europe/Berlin)'] >= '24/10/2019 07:40') & (co2['timestamp(Europe/Berlin)'] <= '25/10/2019')]
+date_co2 = co2[(co2['timestamp(Europe/Berlin)'] >= '2019-11-19 09:00')
+               & (co2['timestamp(Europe/Berlin)'] <= '2019-11-19 17:45')]
 
-no_occupants = room_5[['date_time', 'no_occupants']]
-# # measure = pd.read_csv('data_sets/OLY-A-415.csv', sep=',', decimal='.')
-date_no_occupants = no_occupants[(no_occupants['date_time'] >= '24/10/2019') & (no_occupants['date_time'] <= '25/09/2019')]
 
-date_no_occupants = date_no_occupants.sort_values(by = ['date_time'])
-# date_co2 = date_co2.sort_values(by = ['timestamp(Europe/Berlin)'])
-
-# plt.figure(figsize=(12, 10))
-# plt.plot(date_no_occupants.iloc[:, 0], date_no_occupants.iloc[:, 1], label = 'Occupancy')
-# plt.legend()
-# plt.show()
-
-# fig, axs = plt.subplots(2)
-# fig.suptitle('Aligning x-axis using sharex')
-# axs[0].plot(date_no_occupants.iloc[:, 0], date_no_occupants.iloc[:, 1])
-# axs[1].plot(date_co2.iloc[:, 0], date_co2.iloc[:, 1])
-# plt.show()
-
-data_bricks = pd.read_csv('data_sets/export_room3.csv', sep=';', decimal='.')
-data_bricks = data_bricks.sort_values(by = ['Datetime'])
-# data_bricks = data_bricks.groupby(['Datetime']).mean()
-data_bricks.groupby(['Datetime', 'SpaceName'])['value'].mean().reset_index()
-
-data_bricks = data_bricks[(data_bricks['Datetime'] >= '24/10/2019') & (data_bricks['Datetime'] <= '25/10/2019 ')]
+# room_5 = pd.read_csv('data_sets/Room_5.csv', sep=',', decimal='.')
+#
+#
+# no_occupants = room_5[['date_time', 'no_occupants']]
+# # # measure = pd.read_csv('data_sets/OLY-A-415.csv', sep=',', decimal='.')
+# date_no_occupants = no_occupants[(no_occupants['date_time'] >= '24/10/2019') & (no_occupants['date_time'] <= '25/09/2019')]
+#
+# date_no_occupants = date_no_occupants.sort_values(by = ['date_time'])
+# # date_co2 = date_co2.sort_values(by = ['timestamp(Europe/Berlin)'])
+#
+# # plt.figure(figsize=(12, 10))
+# # plt.plot(date_no_occupants.iloc[:, 0], date_no_occupants.iloc[:, 1], label = 'Occupancy')
+# # plt.legend()
+# # plt.show()
+#
+# # fig, axs = plt.subplots(2)
+# # fig.suptitle('Aligning x-axis using sharex')
+# # axs[0].plot(date_no_occupants.iloc[:, 0], date_no_occupants.iloc[:, 1])
+# # axs[1].plot(date_co2.iloc[:, 0], date_co2.iloc[:, 1])
+# # plt.show()
+#
+# data_bricks = pd.read_csv('data_sets/export_room3.csv', sep=';', decimal='.')
+# data_bricks = data_bricks.sort_values(by = ['Datetime'])
+# # data_bricks = data_bricks.groupby(['Datetime']).mean()
+# data_bricks.groupby(['Datetime', 'SpaceName'])['value'].mean().reset_index()
+#
+# data_bricks = data_bricks[(data_bricks['Datetime'] >= '24/10/2019') & (data_bricks['Datetime'] <= '25/10/2019 ')]
 
 # data_bricks2 = data_bricks.loc[data_bricks['SpaceName'] == 'Room 4.3', ['Datetime', 'SpaceName', 'Value']]
 
@@ -84,15 +112,15 @@ color = 'tab:red'
 ax1.set_xlabel('time')
 ax1.set_ylabel('Occupancy', color=color)
 
-ax1.plot(pd.to_datetime(data_bricks.iloc[:, 0], format='%d/%m/%Y %H:%M').dt.time , data_bricks.iloc[:, 4], color=color)
-ax1.plot(pd.to_datetime(date_no_occupants.iloc[:, 0], format='%d/%m/%Y %H:%M').dt.time, date_no_occupants.iloc[:, 1], color='green')
+ax1.plot(pd.to_datetime(date_occupancy_agg.reset_index().iloc[:, 0], format='%d/%m/%Y %H:%M').dt.time,
+         date_occupancy_agg.reset_index().iloc[:, 1], color=color)
 ax1.tick_params(axis='y', labelcolor=color)
 
 ax2 = ax1.twinx()
 color = 'tab:blue'
 ax2.set_ylabel('CO2', color=color)
 
-ax2.plot(pd.to_datetime(date_co2.iloc[:, 0], format='%d/%m/%Y %H:%M').dt.time, date_co2.iloc[:, 1].shift(-1), color=color)
+ax2.plot(pd.to_datetime(date_co2.iloc[:, 0], format='%Y-%m-%d %H:%M').dt.time, date_co2.iloc[:, 1], color=color)
 ax2.tick_params(axis='y', labelcolor=color)
 fig.tight_layout()
 plt.title(f'Occupancy')
