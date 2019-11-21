@@ -1,27 +1,20 @@
 # Data manipulation
-import numpy as np
-import pandas as pd
-import math
-import matplotlib.pyplot as plt
+import json
+import datetime
+
+import matplotlib.pylab as pylab
 # Visualization
 import matplotlib.pyplot as plt
-from datetime import datetime
-from datetime import timedelta
-from pandas.io.json import json_normalize
-import json
+import numpy as np
+import pandas as pd
 import requests
+from pandas.io.json import json_normalize
 # Preprocessing
 from pandas.io.json import json_normalize
 from sklearn.metrics import r2_score
-from sklearn.preprocessing import StandardScaler
-from sklearn import preprocessing
-from datetime import datetime
-
 # Models
 from sklearn.model_selection import train_test_split
-import matplotlib.pylab as pylab
 
-import Regression
 from Sort import sort_for_plotting
 
 params = {'legend.fontsize': 'x-large',
@@ -36,11 +29,45 @@ import warnings
 import urllib
 warnings.filterwarnings('ignore')
 
-start = urllib.parse.quote('18.11.2019 09:00')
-end = urllib.parse.quote('20.11.2019 17:30')
+# "devices":
+# "name": "OLY-A-414",
+# "uuid": "awair-omni_9049",
+# "timezone": "Europe/Amsterdam",
+# "deviceType": "awair-omni",
+# "deviceId": 9049
+#
+# "name": "OLY-A-416",
+# "uuid": "awair-omni_7675",
+# "timezone": "Europe/Amsterdam",
+# "deviceType": "awair-omni",
+# "deviceId": 7675
+#
+# "name": "OLY-A-413",
+# "uuid": "awair-omni_9033",
+# "timezone": "Europe/Amsterdam",
+# "deviceType": "awair-omni",
+# "deviceId": 9033
+#
+# "name": "OLY-A-415",
+# "uuid": "awair-omni_8989",
+# "timezone": "Europe/Amsterdam",
+# "deviceType": "awair-omni",
+# "deviceId": 8989
+#
+# "name": "OLY-A-417",
+# "uuid": "awair-omni_7663",
+# "timezone": "Europe/Amsterdam",
+# "deviceType": "awair-omni",
+# "deviceId": 7663
+
+start_date = "2019-11-19 09:00"
+end_date = "2019-11-20 17:30"
+
+start_url = urllib.parse.quote(start_date)
+end_url = urllib.parse.quote(end_date)
 
 response = requests.get("https://edgetech.avuity.com/VuSpace/api/report-occupancy-by-area/index?access-token"
-                        f"=Futo24i1PcUZ_HnZ&startTs={start}&endTs={end}")
+                        f"=Futo24i1PcUZ_HnZ&startTs={start_url}&endTs={end_url}")
 
 # print(response.status_code)
 
@@ -50,69 +77,64 @@ occupancy_data_dict = json.loads(occupancy_str)
 occupancy_data_normalised = json_normalize(occupancy_data_dict['items'])
 occupancy = pd.DataFrame.from_dict(occupancy_data_normalised)
 
-room = 'ROOM 3'
+# AWAIR
+
+start_iso = datetime.datetime.strptime(start_date, '%Y-%m-%d %H:%M').isoformat()
+end_iso = datetime.datetime.strptime(end_date, '%Y-%m-%d %H:%M').isoformat()
+
+headers = {
+    'Authorization': 'Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNTE4MDgifQ.HnZ_258AsEfbYLzmpK_g4jbTItIYbEQh_UaxCDO0S88',
+}
+
+params = (
+    ('from', start_iso),
+    ('to', end_iso),
+)
+
+response_awair = requests.get('http://developer-apis.awair.is/v1/orgs/1097/devices/awair-omni/7663/air-data/15-min'
+                              '-avg', headers=headers, params=params)
+
+# print(response_awair.status_code)
+
+awair_json = response_awair.json()
+awair_str = json.dumps(awair_json)
+awair_data_dict = json.loads(awair_str)
+awair = pd.io.json.json_normalize(awair_data_dict["data"], record_path="sensors", meta=['timestamp', 'score'])
+
+room = 'ROOM 4'
 
 occupancy_selected = occupancy.loc[occupancy['areaName'] == f'{room}', ['startTs', 'occupancy']]
 
-date_occupancy_selected = occupancy_selected[(occupancy_selected['startTs'] >= '2019-11-19 09:00')
-                                             & (occupancy_selected['startTs'] <= '2019-11-19 17:35')]
+# date_occupancy_selected = occupancy_selected[(occupancy_selected['startTs'] >= '2019-11-19 09:00')
+#                                              & (occupancy_selected['startTs'] <= '2019-11-20 17:35')]
 # date_occupancy_selected.iloc[:, 0] = pd.to_datetime(date_occupancy_selected.iloc[:, 0], format='%Y-%m-%d %H:%M')
 
-date_occupancy_selected2 = date_occupancy_selected.set_index('startTs')
+date_occupancy_selected = occupancy_selected.set_index('startTs')
 
-date_occupancy_selected2.index = pd.to_datetime(date_occupancy_selected2.index)
+date_occupancy_selected.index = pd.to_datetime(date_occupancy_selected.index)
 
-date_occupancy_agg = date_occupancy_selected2.resample('15T').max().ffill().astype(int)
+date_occupancy_agg = date_occupancy_selected.resample('15T').max().ffill().astype(int)
 
 # read the dataset
-measurements = pd.read_csv('data_sets/19_20/OLY-A-415.csv', sep=',', decimal='.')
+# measurements = pd.read_csv('data_sets/19_20/OLY-A-415.csv', sep=',', decimal='.')
+# co2 = measurements[['timestamp(Europe/Berlin)', 'co2', 'noise']]
+# date_co2 = co2[(co2['timestamp(Europe/Berlin)'] >= '2019-11-19 09:00')
+#                & (co2['timestamp(Europe/Berlin)'] <= '2019-11-21 17:45')]
 
-co2 = measurements[['timestamp(Europe/Berlin)', 'co2']]
+awair.iloc[:, 2] = pd.to_datetime(awair.iloc[:, 2], format='%Y-%m-%d %H:%M')
 
-# date_co2 = co2[(co2['timestamp(Europe/Berlin)'] >= '19/11/2019 09:00')
-#                & (co2['timestamp(Europe/Berlin)'] <= '20/10/2019 17:30')]
+awair.sort_values(by = 'timestamp', ascending = True)
 
-date_co2 = co2[(co2['timestamp(Europe/Berlin)'] >= '2019-11-19 09:00')
-               & (co2['timestamp(Europe/Berlin)'] <= '2019-11-19 17:45')]
+co2 = awair.loc[awair['comp'] == 'co2', ['timestamp', 'value']]
+noise = awair.loc[awair['comp'] == 'spl_a', ['timestamp', 'value']]
 
 
-# room_5 = pd.read_csv('data_sets/Room_5.csv', sep=',', decimal='.')
-#
-#
-# no_occupants = room_5[['date_time', 'no_occupants']]
-# # # measure = pd.read_csv('data_sets/OLY-A-415.csv', sep=',', decimal='.')
-# date_no_occupants = no_occupants[(no_occupants['date_time'] >= '24/10/2019') & (no_occupants['date_time'] <= '25/09/2019')]
-#
-# date_no_occupants = date_no_occupants.sort_values(by = ['date_time'])
-# # date_co2 = date_co2.sort_values(by = ['timestamp(Europe/Berlin)'])
-#
-# # plt.figure(figsize=(12, 10))
-# # plt.plot(date_no_occupants.iloc[:, 0], date_no_occupants.iloc[:, 1], label = 'Occupancy')
-# # plt.legend()
-# # plt.show()
-#
-# # fig, axs = plt.subplots(2)
-# # fig.suptitle('Aligning x-axis using sharex')
-# # axs[0].plot(date_no_occupants.iloc[:, 0], date_no_occupants.iloc[:, 1])
-# # axs[1].plot(date_co2.iloc[:, 0], date_co2.iloc[:, 1])
-# # plt.show()
-#
-# data_bricks = pd.read_csv('data_sets/export_room3.csv', sep=';', decimal='.')
-# data_bricks = data_bricks.sort_values(by = ['Datetime'])
-# # data_bricks = data_bricks.groupby(['Datetime']).mean()
-# data_bricks.groupby(['Datetime', 'SpaceName'])['value'].mean().reset_index()
-#
-# data_bricks = data_bricks[(data_bricks['Datetime'] >= '24/10/2019') & (data_bricks['Datetime'] <= '25/10/2019 ')]
-
-# data_bricks2 = data_bricks.loc[data_bricks['SpaceName'] == 'Room 4.3', ['Datetime', 'SpaceName', 'Value']]
-
-plt.figure(figsize=(12, 10))
 fig, ax1 = plt.subplots()
 color = 'tab:red'
 ax1.set_xlabel('time')
 ax1.set_ylabel('Occupancy', color=color)
 
-ax1.plot(pd.to_datetime(date_occupancy_agg.reset_index().iloc[:, 0], format='%d/%m/%Y %H:%M').dt.time,
+ax1.plot(date_occupancy_agg.reset_index().iloc[:, 0],
          date_occupancy_agg.reset_index().iloc[:, 1], color=color)
 ax1.tick_params(axis='y', labelcolor=color)
 
@@ -120,10 +142,32 @@ ax2 = ax1.twinx()
 color = 'tab:blue'
 ax2.set_ylabel('CO2', color=color)
 
-ax2.plot(pd.to_datetime(date_co2.iloc[:, 0], format='%Y-%m-%d %H:%M').dt.time, date_co2.iloc[:, 1], color=color)
+ax2.plot(co2.iloc[:, 0], co2.iloc[:, 1], color=color)
 ax2.tick_params(axis='y', labelcolor=color)
+
 fig.tight_layout()
-plt.title(f'Occupancy')
+plt.title(f'Occupancy vs CO_2')
+plt.legend()
+plt.show()
+
+fig, ax1 = plt.subplots()
+color = 'tab:red'
+ax1.set_xlabel('time')
+ax1.set_ylabel('Occupancy', color=color)
+
+ax1.plot(date_occupancy_agg.reset_index().iloc[:, 0],
+         date_occupancy_agg.reset_index().iloc[:, 1], color=color)
+ax1.tick_params(axis='y', labelcolor=color)
+
+ax2 = ax1.twinx()
+color = 'tab:blue'
+ax2.set_ylabel('noise', color=color)
+
+ax2.plot(noise.iloc[:, 0], noise.iloc[:, 1], color=color)
+ax2.tick_params(axis='y', labelcolor=color)
+
+fig.tight_layout()
+plt.title(f'Occupancy vs Noise')
 plt.legend()
 plt.show()
 
@@ -133,8 +177,8 @@ reg_data = reg_data[(reg_data['timestamp(Europe/Berlin)'] >= '24/10/2019') &
 
 from sklearn import linear_model
 import scipy.stats as stats
-from sklearn.preprocessing import MinMaxScaler, StandardScaler, Normalizer, RobustScaler, PolynomialFeatures
-from sklearn.cluster import DBSCAN, KMeans
+from sklearn.preprocessing import StandardScaler, PolynomialFeatures
+from sklearn.cluster import KMeans
 
 # outlier_detection = DBSCAN(eps = .2, metric = 'euclidean', min_samples = 5, n_jobs = -1)
 outlier_detection = KMeans(n_clusters=7, random_state=0)
@@ -163,7 +207,6 @@ outlier_set = np.column_stack((sound, co2))
 
 clusters = outlier_detection.fit_predict(co2)
 
-from matplotlib import cm
 # cmap = cm.get_cmap('Set1')
 outlier_set[:, 0] = scaler_sound.inverse_transform(outlier_set[:, 0])
 outlier_set[:, 1] = scaler_co2.inverse_transform(outlier_set[:, 1])
