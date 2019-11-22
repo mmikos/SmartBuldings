@@ -5,6 +5,9 @@ import datetime
 import matplotlib.pylab as pylab
 # Visualization
 import matplotlib.pyplot as plt
+from sklearn.metrics import mean_squared_error, r2_score, accuracy_score, confusion_matrix, precision_score
+import math
+import statsmodels.api as sm
 import numpy as np
 import pandas as pd
 import requests
@@ -12,8 +15,14 @@ from pandas.io.json import json_normalize
 # Preprocessing
 from pandas.io.json import json_normalize
 from sklearn.metrics import r2_score
+import seaborn as sns
 # Models
 from sklearn.model_selection import train_test_split
+from sklearn import linear_model
+import scipy.stats as stats
+from sklearn.preprocessing import StandardScaler, PolynomialFeatures
+from sklearn.cluster import KMeans
+from sklearn.utils.multiclass import unique_labels
 
 from Sort import sort_for_plotting
 
@@ -60,8 +69,8 @@ warnings.filterwarnings('ignore')
 # "deviceType": "awair-omni",
 # "deviceId": 7663
 
-start_date = "2019-11-19 09:00"
-end_date = "2019-11-20 17:30"
+start_date = "2019-11-18 09:00"
+end_date = "2019-11-21 17:45"
 
 start_url = urllib.parse.quote(start_date)
 end_url = urllib.parse.quote(end_date)
@@ -91,7 +100,7 @@ params = (
     ('to', end_iso),
 )
 
-response_awair = requests.get('http://developer-apis.awair.is/v1/orgs/1097/devices/awair-omni/7663/air-data/15-min'
+response_awair = requests.get('http://developer-apis.awair.is/v1/orgs/1097/devices/awair-omni/7675/air-data/15-min'
                               '-avg', headers=headers, params=params)
 
 # print(response_awair.status_code)
@@ -105,10 +114,6 @@ room = 'ROOM 4'
 
 occupancy_selected = occupancy.loc[occupancy['areaName'] == f'{room}', ['startTs', 'occupancy']]
 
-# date_occupancy_selected = occupancy_selected[(occupancy_selected['startTs'] >= '2019-11-19 09:00')
-#                                              & (occupancy_selected['startTs'] <= '2019-11-20 17:35')]
-# date_occupancy_selected.iloc[:, 0] = pd.to_datetime(date_occupancy_selected.iloc[:, 0], format='%Y-%m-%d %H:%M')
-
 date_occupancy_selected = occupancy_selected.set_index('startTs')
 
 date_occupancy_selected.index = pd.to_datetime(date_occupancy_selected.index)
@@ -121,12 +126,16 @@ date_occupancy_agg = date_occupancy_selected.resample('15T').max().ffill().astyp
 # date_co2 = co2[(co2['timestamp(Europe/Berlin)'] >= '2019-11-19 09:00')
 #                & (co2['timestamp(Europe/Berlin)'] <= '2019-11-21 17:45')]
 
-awair.iloc[:, 2] = pd.to_datetime(awair.iloc[:, 2], format='%Y-%m-%d %H:%M')
+awair = awair.sort_values(by = 'timestamp', ascending = True)
 
-awair.sort_values(by = 'timestamp', ascending = True)
+awair.iloc[:, 2] = pd.to_datetime(awair.iloc[:, 2], format='%Y-%m-%d %H:%M')
 
 co2 = awair.loc[awair['comp'] == 'co2', ['timestamp', 'value']]
 noise = awair.loc[awair['comp'] == 'spl_a', ['timestamp', 'value']]
+
+# date_co2 = co2[(co2['timestamp(Europe/Berlin)'] >= '2019-11-19 09:00')
+#                & (co2['timestamp(Europe/Berlin)'] <= '2019-11-21 17:45')]
+# pd.to_datetime(date_co2.iloc[:, 0], format='%d/%m/%Y %H:%M').dt.time
 
 
 fig, ax1 = plt.subplots()
@@ -148,7 +157,7 @@ ax2.tick_params(axis='y', labelcolor=color)
 fig.tight_layout()
 plt.title(f'Occupancy vs CO_2')
 plt.legend()
-plt.show()
+# plt.show()
 
 fig, ax1 = plt.subplots()
 color = 'tab:red'
@@ -169,25 +178,16 @@ ax2.tick_params(axis='y', labelcolor=color)
 fig.tight_layout()
 plt.title(f'Occupancy vs Noise')
 plt.legend()
-plt.show()
+# plt.show()
 
-reg_data = pd.read_csv('data_sets/OLY-A-417.csv', sep=';', decimal='.')
-reg_data = reg_data[(reg_data['timestamp(Europe/Berlin)'] >= '24/10/2019') &
-                    (reg_data['timestamp(Europe/Berlin)'] <= '25/10/2019 ')]
 
-from sklearn import linear_model
-import scipy.stats as stats
-from sklearn.preprocessing import StandardScaler, PolynomialFeatures
-from sklearn.cluster import KMeans
 
 # outlier_detection = DBSCAN(eps = .2, metric = 'euclidean', min_samples = 5, n_jobs = -1)
-outlier_detection = KMeans(n_clusters=7, random_state=0)
+outlier_detection = KMeans(n_clusters=6, random_state=0)
 
-reg_data_no_na = reg_data.dropna()
 
-import seaborn as sns
-sns.boxplot(x=reg_data_no_na[['co2']])
-plt.show()
+# sns.boxplot(x=occupancy_selected.iloc[:, 1])
+# plt.show()
 
 # z = np.abs(stats.zscore(reg_data_no_na[['co2']]))
 # print(z)
@@ -196,110 +196,164 @@ plt.show()
 
 # reg_data_no_na = reg_data_no_na[(z < 3).all(axis=1)]
 
-scaler_sound = StandardScaler()
-scaler_co2 = StandardScaler()
-
-sound = scaler_sound.fit_transform(reg_data_no_na[['noise']])
+# scaler_sound = StandardScaler()
+# scaler_co2 = StandardScaler()
+#
+# sound = scaler_sound.fit_transform(reg_data_no_na[['noise']])
 # sound = reg_data_no_na[['timestamp(Europe/Berlin)']]
-co2 = scaler_co2.fit_transform(reg_data_no_na[['co2']])
+# co2 = scaler_co2.fit_transform(reg_data_no_na[['co2']])
 
-outlier_set = np.column_stack((sound, co2))
+outlier_set = np.column_stack((noise.iloc[:, 1], co2.iloc[:, 1]))
 
-clusters = outlier_detection.fit_predict(co2)
+clusters = outlier_detection.fit_predict(co2[['value']])
 
 # cmap = cm.get_cmap('Set1')
-outlier_set[:, 0] = scaler_sound.inverse_transform(outlier_set[:, 0])
-outlier_set[:, 1] = scaler_co2.inverse_transform(outlier_set[:, 1])
-plt.scatter(outlier_set[:, 0], outlier_set[:, 1], c=clusters, cmap='viridis')
-plt.legend()
-plt.show()
+# outlier_set[:, 0] = scaler_sound.inverse_transform(outlier_set[:, 0])
+# outlier_set[:, 1] = scaler_co2.inverse_transform(outlier_set[:, 1])
+# plt.scatter(outlier_set[:, 0], outlier_set[:, 1], c=clusters, cmap='viridis')
+# plt.show()
 
 # reg_data_no_na = reg_data_no_na - np.mean(reg_data_no_na)
 
-scaler_predictors = StandardScaler()
-scaler_output = StandardScaler()
-# reg_data2 = preprocessing.normalize(reg_data_no_na, norm='l2')
-X = reg_data_no_na[['temp', 'noise']]
-y = reg_data_no_na[['co2']]
-# X = reg_data_no_na[['temp', 'humid', 'light', 'noise']]
-# y = reg_data_no_na[['co2']]
+# scaler_predictors = StandardScaler()
+# scaler_output = StandardScaler()
+co2_date = co2.set_index('timestamp')
+noise_date = noise.set_index('timestamp')
 
-import statsmodels.api as sm
-degree = 1
+co2_date = co2_date.between_time('9:00', '17:45')
+noise_date = noise_date.between_time('9:00', '17:45')
+date_occupancy_agg = date_occupancy_agg.between_time('9:00', '17:45')
+
+measurements = np.column_stack((co2_date, noise_date))
+
+X = measurements
+y = date_occupancy_agg
+
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.gaussian_process import GaussianProcessClassifier
+from sklearn.gaussian_process.kernels import RBF
+# measurements = pd.DataFrame(np.column_stack((measurements, y)))
+
+# plt.figure(figsize=(12,8))
+# sns.heatmap(measurements.corr(), cmap='Blues',annot=True)
+# plt.show()
+
+degree = 3
+scaler = StandardScaler()
+
+X = scaler.fit_transform(X)
+
 # sensor_values_centered = sensor_values - np.mean(sensor_values)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=1 / 3, random_state=42)
+
+
+clf = GaussianProcessClassifier(1.0 * RBF(1.0))
+# clf = RandomForestClassifier(n_estimators=300, max_depth=10, criterion = 'entropy', class_weight='balanced', random_state = 42)
+
+clf.fit(X_train, y_train)
+
+Random_Forest_class_predicition = clf.predict(X_test)
+print(accuracy_score(Random_Forest_class_predicition, y_test))
+print(precision_score(Random_Forest_class_predicition, y_test, average='weighted'))
+# But Confusion Matrix and Classification Report give more details about performance
+print(confusion_matrix(Random_Forest_class_predicition, y_test))
+
+def plot_confusion_matrix(y_true, y_pred, classes,
+                          normalize=False,
+                          title=None,
+                          cmap=plt.cm.Blues):
+    """
+    This function prints and plots the confusion matrix.
+    Normalization can be applied by setting `normalize=True`.
+    """
+    if not title:
+        if normalize:
+            title = 'Normalized confusion matrix'
+        else:
+            title = 'Confusion matrix, without normalization'
+
+    # Compute confusion matrix
+    cm = confusion_matrix(y_true, y_pred)
+    # Only use the labels that appear in the data
+    classes = classes[unique_labels(y_true, y_pred)]
+    if normalize:
+        cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+        print("Normalized confusion matrix")
+    else:
+        print('Confusion matrix, without normalization')
+
+    print(cm)
+
+    fig, ax = plt.subplots()
+    im = ax.imshow(cm, interpolation='nearest', cmap=cmap)
+    ax.figure.colorbar(im, ax=ax)
+    # We want to show all ticks...
+    ax.set(xticks=np.arange(cm.shape[1]),
+           yticks=np.arange(cm.shape[0]),
+           # ... and label them with the respective list entries
+           xticklabels=classes, yticklabels=classes,
+           title=title,
+           ylabel='True label',
+           xlabel='Predicted label')
+
+    # Rotate the tick labels and set their alignment.
+    plt.setp(ax.get_xticklabels(), rotation=45, ha="right",
+             rotation_mode="anchor")
+
+    # Loop over data dimensions and create text annotations.
+    fmt = '.2f' if normalize else 'd'
+    thresh = cm.max() / 2.
+    for i in range(cm.shape[0]):
+        for j in range(cm.shape[1]):
+            ax.text(j, i, format(cm[i, j], fmt),
+                    ha="center", va="center",
+                    color="white" if cm[i, j] > thresh else "black")
+    fig.tight_layout()
+    return ax
+
+
+np.set_printoptions(precision=2)
+
+# Plot non-normalized confusion matrix
+plot_confusion_matrix(y_test, Random_Forest_class_predicition, classes=np.sort(y.occupancy.unique()),
+                      title='Confusion matrix, without normalization')
+
+# Plot normalized confusion matrix
+plot_confusion_matrix(y_test, Random_Forest_class_predicition, classes=np.sort(y.occupancy.unique()), normalize=True,
+                      title='Normalized confusion matrix')
+
+plt.show()
 
 # Perform polynomial transformation
 polynomial_features = PolynomialFeatures(degree=degree)
-sensor_values_polynomial = polynomial_features.fit_transform(X)
-
-X_train, X_test, y_train, y_test = train_test_split(sensor_values_polynomial, y, test_size=1 / 3, random_state=42)
+sensor_values_polynomial = polynomial_features.fit_transform(X_train)
 
 # Fit the model
-model = sm.OLS(y_train, X_train).fit()
+model = sm.OLS(y_train, sensor_values_polynomial).fit()
 # fit_regularized(alpha=0.2, L1_wt=0.5)
 test0 = np.array([[1], [22], [60]]).T
-score_values_predicted = model.predict(X_test)
+score_values_predicted = model.predict(polynomial_features.fit_transform(X_test))
 
-rsquared_OLS = r2_score(y_test, score_values_predicted)
+rsquared = model.rsquared_adj
+MSE = math.sqrt(mean_squared_error(y_test, score_values_predicted))
 
 print(model.summary())
-
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=1 / 3, random_state=42)
-
-clf = linear_model.Lasso(alpha=0.1)
-clf.fit(X_train, y_train)
-
-params = np.append(clf.intercept_, clf.coef_)
-predictions = clf.predict(X_test)
-
-test = np.array([[22], [45], [52]]).T
-# newX = pd.concat([pd.DataFrame({"Constant": np.ones(len(X_test))}), X_test], axis=1)
-newX = pd.DataFrame({"Constant": np.ones(len(X_test))}).join(X_test.reset_index(drop=True))
-# MSE = (np.sum((y_test.T-predictions.T)**2))/(len(newX)-len(newX.columns))
-MSE = (sum((y_test.T-predictions.T)**2))/(len(newX)-len(newX.columns))
-
-var_b = MSE*(np.linalg.inv(np.dot(newX.T, newX)).diagonal())
-sd_b = np.sqrt(var_b)
-ts_b = params/sd_b
-
-p_values = [2 * (1 - stats.t.cdf(np.abs(i), (len(newX) - 1))) for i in ts_b]
-
-sd_b = np.round(sd_b, 3)
-ts_b = np.round(ts_b, 3)
-p_values = np.round(p_values, 3)
-params = np.round(params, 4)
-
-myDF3 = pd.DataFrame()
-myDF3["Coefficients"], myDF3["Standard Errors"], myDF3["t values"], myDF3["Probabilites"] = [params, sd_b, ts_b,
-                                                                                             p_values]
-print(myDF3)
-
-
-rsquared = r2_score(y_test, predictions)
-F = rsquared / ((1 - rsquared) / (len(y) - 1 - 1))
-p_value = stats.f.sf(F, 1, len(y) - 1 - 1)
-
-# X = scaler_predictors.inverse_transform(X)
-# y = scaler_output.inverse_transform(y)
-# predictions = scaler_output.inverse_transform(predictions.reshape(-1, 1))
-
-X_test_sorted, y_predicted_sorted = sort_for_plotting(X_test.iloc[:, 0], predictions)
+X_test_sorted, y_predicted_sorted = sort_for_plotting(X_test, score_values_predicted)
 # Plot original data
-plt.scatter(X_test.iloc[:, 0], y_test, color='red')
+plt.scatter(X_test, y_test, color='red')
 # plt.scatter(X[:, 1], y, color='blue')
-# plt.scatter(X[:, 2], y, color='green')
-# plt.scatter(X[:, 3], y, color='yellow')
-# Plot predicted regression function
 
 plt.plot(X_test_sorted, y_predicted_sorted, label=f"Degree {1}," + f" $R^2$: {round(rsquared, 3)}, MSE: {round(MSE, 3)}")
 
 plt.legend(loc='upper right')
-plt.xlabel("Temp")
-plt.ylabel("CO2")
+plt.xlabel("CO_2")
+plt.ylabel("Occupancy")
 plt.title(f'Satisfaction vs indoor conditions (Polynomial Regression)')
 plt.show()
 
 
+
+print('whatever')
 
 # def get_single_measurement(data, measurement=str):
 #     measurement_name = data.loc[data['PortName'] == f'{measurement}', ['Datetime', 'PortName', 'Value']].pivot_table(
@@ -320,5 +374,44 @@ plt.show()
 #                                                                             'Value']].pivot_table(index='Datetime',
 #                                                                                                   columns='SpaceName',
 #                                                                                                   values='Value')
+#
+# X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=1 / 3, random_state=42)
+#
+# clf = linear_model.Lasso(alpha=0.1)
+# clf.fit(X_train, y_train)
+#
+# params = np.append(clf.intercept_, clf.coef_)
+# predictions = clf.predict(X_test)
+#
+# # test = np.array([[22], [45], [52]]).T
+# # newX = pd.concat([pd.DataFrame({"Constant": np.ones(len(X_test))}), X_test], axis=1)
+# newX = pd.DataFrame({"Constant": np.ones(len(X_test))}).join(pd.DataFrame(X_test))
+# # MSE = (np.sum((y_test.T-predictions.T)**2))/(len(newX)-len(newX.columns))
+# MSE = (sum(((y_test.reset_index(drop = True).T-predictions.T))**2))/(len(newX)-len(newX.columns))
+#
+# var_b = MSE*(np.linalg.inv(np.dot(newX.T, newX)).diagonal())
+# sd_b = np.sqrt(var_b)
+# ts_b = params/sd_b
+#
+# p_values = [2 * (1 - stats.t.cdf(np.abs(i), (len(newX) - 1))) for i in ts_b]
+#
+# sd_b = np.round(sd_b, 3)
+# ts_b = np.round(ts_b, 3)
+# p_values = np.round(p_values, 3)
+# params = np.round(params, 4)
+#
+# myDF3 = pd.DataFrame()
+# myDF3["Coefficients"], myDF3["Standard Errors"], myDF3["t values"], myDF3["Probabilites"] = [params, sd_b, ts_b,
+#                                                                                              p_values]
+# print(myDF3)
+#
+#
+# rsquared = r2_score(y_test, predictions)
+# F = rsquared / ((1 - rsquared) / (len(y) - 1 - 1))
+# p_value = stats.f.sf(F, 1, len(y) - 1 - 1)
+#
+# # X = scaler_predictors.inverse_transform(X)
+# # y = scaler_output.inverse_transform(y)
+# # predictions = scaler_output.inverse_transform(predictions.reshape(-1, 1))
 
-print('whatever')
+
