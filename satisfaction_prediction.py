@@ -1,5 +1,7 @@
 # Visualization
 import matplotlib.pyplot as plt
+
+from Artificial_Neural_Network import ANN
 from Sort import sort_for_plotting
 # Data Manipulation
 import numpy as np
