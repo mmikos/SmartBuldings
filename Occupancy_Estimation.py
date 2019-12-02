@@ -5,6 +5,7 @@ import datetime
 import matplotlib.pylab as pylab
 # Visualization
 import matplotlib.pyplot as plt
+from keras.optimizers import SGD
 from sklearn.metrics import mean_squared_error, r2_score, accuracy_score, confusion_matrix, precision_score
 import math
 import statsmodels.api as sm
@@ -18,7 +19,7 @@ from sklearn.metrics import r2_score
 import seaborn as sns
 # Models
 from sklearn.model_selection import train_test_split
-from sklearn import linear_model
+from sklearn import linear_model, preprocessing
 import scipy.stats as stats
 from sklearn.preprocessing import StandardScaler, PolynomialFeatures
 from sklearn.cluster import KMeans
@@ -27,7 +28,7 @@ from tqdm import tqdm
 
 from Artificial_Neural_Network import ANN
 from Artificial_Neural_Network_Classification import ANN_classify
-from Artificial_Neural_Network_Regression import ANN_regress
+from Artificial_Neural_Network_Regression import *
 from Sort import sort_for_plotting
 
 params = {'legend.fontsize': 'x-large',
@@ -37,7 +38,7 @@ params = {'legend.fontsize': 'x-large',
           'xtick.labelsize': 'x-small',
           'ytick.labelsize': 'small'}
 pylab.rcParams.update(params)
-
+from datetime import datetime, timedelta
 import warnings
 import urllib
 
@@ -121,58 +122,75 @@ def plot_confusion_matrix(confusion_matrix,
 # "deviceType": "awair-omni",
 # "deviceId": 7663
 
-start_date = "2019-11-19 09:00"
-end_date = "2019-11-24 17:45"
+start_date = "2019-11-18 09:00"
+end_date = "2019-12-01 09:00"
 
 # AVUITY
+start = pd.to_datetime(start_date)
+end = pd.to_datetime(end_date)
+occupancy = pd.DataFrame()
+awair = pd.DataFrame()
+freq = 2
 
-start_url = urllib.parse.quote(start_date)
-end_url = urllib.parse.quote(end_date)
+for day in range(int((end - start).days / freq)):
 
-response = requests.get("https://edgetech.avuity.com/VuSpace/api/report-occupancy-by-area/index?access-token"
-                        f"=Futo24i1PcUZ_HnZ&startTs={start_url}&endTs={end_url}")
+    date = start
+    next_date = date + timedelta(days=freq)
 
-# print(response.status_code)
+    start_url = urllib.parse.quote(str(date))
+    next_url = urllib.parse.quote(str(next_date))
 
-occupancy_json = response.json()
-occupancy_str = json.dumps(occupancy_json)
-occupancy_data_dict = json.loads(occupancy_str)
-occupancy_data_normalised = json_normalize(occupancy_data_dict['items'])
-occupancy = pd.DataFrame.from_dict(occupancy_data_normalised)
+    response = requests.get("https://edgetech.avuity.com/VuSpace/api/report-occupancy-by-area/index?access-token"
+                            f"=Futo24i1PcUZ_HnZ&startTs={start_url}&endTs={next_url}")
 
-# AWAIR
+    # print(response.status_code)
 
-start_iso = datetime.datetime.strptime(start_date, '%Y-%m-%d %H:%M').isoformat()
-end_iso = datetime.datetime.strptime(end_date, '%Y-%m-%d %H:%M').isoformat()
+    occupancy_json = response.json()
+    occupancy_str = json.dumps(occupancy_json)
+    occupancy_data_dict = json.loads(occupancy_str)
+    occupancy_data_normalised = json_normalize(occupancy_data_dict['items'])
+    occupancy2 = pd.DataFrame.from_dict(occupancy_data_normalised)
 
-headers = {
-    'Authorization': 'Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNTE4MDgifQ.HnZ_258AsEfbYLzmpK_g4jbTItIYbEQh_UaxCDO0S88',
-}
+    occupancy = occupancy.append(occupancy2, ignore_index=False)
+    # start = date + timedelta(days=5)
 
-params = (
-    ('from', start_iso),
-    ('to', end_iso),
-)
+    # AWAIR
 
-# devices_list = pd.DataFrame([['OLY-A-413', 'OLY-A-414', 'OLY-A-415', 'OLY-A-416', 'OLY-A-417'],
-#                              ['9033', '9049', '8989', '7675', '7663']])
-devices_list = pd.DataFrame([['OLY-A-415'],
-                             ['8989']])
+    start_iso = date.isoformat()
+    end_iso = next_date.isoformat()
 
-awair_dataset = pd.DataFrame(columns=['comp', 'value', 'timestamp', 'score'])
+    headers = {
+        'Authorization': 'Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNTE4MDgifQ.HnZ_258AsEfbYLzmpK_g4jbTItIYbEQh_UaxCDO0S88',
+    }
 
-for device_id in devices_list.iloc[1, :]:
-    response_awair = requests.get(f'http://developer-apis.awair.is/v1/orgs/1097/devices/awair-omni/{device_id}/air-data'
-                                  f'/15-min-avg', headers=headers, params=params)
-    awair_json = response_awair.json()
-    awair_str = json.dumps(awair_json)
-    awair_data_dict = json.loads(awair_str)
-    awair = pd.io.json.json_normalize(awair_data_dict["data"], record_path="sensors", meta=['timestamp', 'score'])
-    awair_sensor_code = [device_id for _ in range(len(awair))]
-    awair['sensor_name'] = awair_sensor_code
-    awair_dataset = awair_dataset.append(awair, ignore_index=True)
+    params = (
+        ('from', start_iso),
+        ('to', end_iso),
+    )
 
-awair = awair_dataset
+    # devices_list = pd.DataFrame([['OLY-A-413', 'OLY-A-414', 'OLY-A-415', 'OLY-A-416', 'OLY-A-417'],
+    #                              ['9033', '9049', '8989', '7675', '7663']])
+    devices_list = pd.DataFrame([['OLY-A-415'],
+                                 ['8989']])
+
+    awair_dataset = pd.DataFrame(columns=['comp', 'value', 'timestamp', 'score'])
+
+    for device_id in devices_list.iloc[1, :]:
+        response_awair = requests.get(
+            f'http://developer-apis.awair.is/v1/orgs/1097/devices/awair-omni/{device_id}/air-data'
+            f'/15-min-avg', headers=headers, params=params)
+        awair_json = response_awair.json()
+        awair_str = json.dumps(awair_json)
+        awair_data_dict = json.loads(awair_str)
+        awair_norm = pd.io.json.json_normalize(awair_data_dict["data"], record_path="sensors",
+                                               meta=['timestamp', 'score'])
+        awair_sensor_code = [device_id for _ in range(len(awair_norm))]
+        awair_norm['sensor_name'] = awair_sensor_code
+        awair_dataset = awair_dataset.append(awair_norm, ignore_index=True)
+
+    awair = awair.append(awair_dataset, ignore_index=False)
+    start = date + timedelta(days=freq)
+
 # print(response_awair.status_code)
 
 # rooms = ['ROOM 1', 'ROOM 2', 'ROOM 3', 'ROOM 4', 'ROOM 5']
@@ -186,7 +204,7 @@ for room in rooms:
 
     date_occupancy_selected.index = pd.to_datetime(date_occupancy_selected.index, utc=True)
 
-    date_occupancy_agg = date_occupancy_selected.resample('15T').max().ffill().astype(int)
+    date_occupancy_agg = date_occupancy_selected.resample('30T').mean().ffill().astype(int)
 
     occupancy_selected2 = occupancy_selected2.append(date_occupancy_agg.reset_index(), ignore_index=False)
 # occupancy_selected = occupancy[['startTs', 'occupancy', 'areaName']]
@@ -201,11 +219,17 @@ occupancy_selected = occupancy_selected2.sort_values(by='startTs')
 
 awair = awair.sort_values(by='timestamp', ascending=True)
 
-awair['timestamp'] = pd.to_datetime(awair['timestamp'], format='%Y-%m-%d %H:%M', utc=True)
+awair = awair.set_index('timestamp')
 
-co2 = awair.loc[awair['comp'] == 'co2', ['timestamp', 'value']]
-noise = awair.loc[awair['comp'] == 'spl_a', ['timestamp', 'value']]
+# awair['timestamp'] = pd.to_datetime(awair['timestamp'], format='%Y-%m-%d %H:%M', utc=True)
 
+awair.index = pd.to_datetime(awair.index, utc=True)
+
+co2 = awair.loc[awair['comp'] == 'co2', ['value']]
+co2 = co2.resample('30T').mean().ffill().astype(int)
+
+noise = awair.loc[awair['comp'] == 'spl_a', ['value']]
+noise = noise.resample('30T').mean().ffill().astype(int)
 # date_co2 = co2[(co2['timestamp(Europe/Berlin)'] >= '2019-11-19 09:00')
 #                & (co2['timestamp(Europe/Berlin)'] <= '2019-11-21 17:45')]
 # pd.to_datetime(date_co2.iloc[:, 0], format='%d/%m/%Y %H:%M').dt.time
@@ -274,9 +298,9 @@ outlier_detection = KMeans(n_clusters=6, random_state=0)
 # sound = reg_data_no_na[['timestamp(Europe/Berlin)']]
 # co2 = scaler_co2.fit_transform(reg_data_no_na[['co2']])
 
-outlier_set = np.column_stack((noise.iloc[:, 1], co2.iloc[:, 1]))
+# outlier_set = np.column_stack((noise.iloc[:, 1], co2.iloc[:, 1]))
 
-clusters = outlier_detection.fit_predict(co2[['value']])
+# clusters = outlier_detection.fit_predict(co2[['value']])
 
 # cmap = cm.get_cmap('Set1')
 # outlier_set[:, 0] = scaler_sound.inverse_transform(outlier_set[:, 0])
@@ -288,21 +312,21 @@ clusters = outlier_detection.fit_predict(co2[['value']])
 
 # scaler_predictors = StandardScaler()
 # scaler_output = StandardScaler()
-co2_date = co2.set_index('timestamp')
-noise_date = noise.set_index('timestamp')
+# co2_date = co2.set_index('timestampestamp')
+# noise_date = noise.set_index('timestamp')
 occupancy_selected_date = occupancy_selected.set_index('startTs')
 
-co2_date = co2_date.between_time('9:15', '16:45')
-noise_date = noise_date.between_time('9:15', '16:45')
-date_occupancy_agg = occupancy_selected_date.between_time('9:15', '16:45')
+# co2_date = co2_date.between_time('9:15', '16:45')
+# noise_date = noise_date.between_time('9:15', '16:45')
+# occupancy_selected_date = occupancy_selected_date.between_time('9:15', '16:45')
 
 # measurements_labels = np.column_stack((co2_date, noise_date, date_occupancy_agg))
-measurements = co2_date.join(noise_date, how='left', lsuffix='_co2', rsuffix='_noise')
+measurements = co2.join(noise, how='left', lsuffix='_co2', rsuffix='_noise')
 
-measurements_labels = measurements.join(date_occupancy_agg, how='left')
+measurements_labels = measurements.join(occupancy_selected_date, how='left')
 
 X = measurements
-y = date_occupancy_agg
+y = occupancy_selected
 data = measurements_labels
 
 from sklearn.ensemble import RandomForestClassifier
@@ -355,17 +379,47 @@ Results_ANN_list = []
 #                                                         number_of_layers, dropout_rate, number_of_epochs,
 #                                                         regularization_penalty)
 
+scaler = preprocessing.MinMaxScaler(feature_range=(0, 1))
+data = data.to_numpy()
+no_features = data.shape[1] - 1
+data[:, 0:no_features] = scaler.fit_transform(data[:, 0:no_features])
+
+
+def prepare_data(data, window_size):
+    batches = []
+    labels = []
+    for idx in range(len(data) - window_size - 1):
+        batches.append(data[idx: idx + window_size, 0:no_features])
+        labels.append(data[idx + window_size, no_features])
+    return np.array(batches), np.array(labels)
+
+
+batches, labels = prepare_data(data, window_size)
+
+X_train, X_test, y_train, y_test = train_test_split(batches, labels, test_size=1 / 3, random_state=42,
+                                                    shuffle=True)
+
+opt = SGD(learning_rate=0.001, momentum=0.99)
+no_of_features = 2
+
+model_LSTM = LSTM(window_size, no_of_features, opt, number_of_nodes)
+
+model_LSTM.fit(X_train, X_test, y_train, y_test, number_of_epochs, 0)
+
+prediction = model_LSTM.predict(X_test)
+
+MSE, R2, residuals, good, bad = model_LSTM.evaluate(prediction, X_test, y_test)
+
 R2_ANN, MSE_ANN, y_predicted, training_history = ANN_regress(data, number_of_nodes, dropout_rate, window_size,
                                                              batch_size, number_of_epochs, regularization_penalty)
 
-# for window in tqdm(window_size):
-#     for batch in batch_size:
+# for nodes in tqdm(number_of_nodes):
 #
-#         R2_ANN, MSE_ANN, y_predicted, training_history = ANN_regress(data, number_of_nodes, dropout_rate, window,
-#                                                              batch, number_of_epochs, regularization_penalty)
-#         Results_ANN_list.append([R2_ANN, MSE_ANN, window, batch])
-
-# Results_ANN = pd.DataFrame(Results_ANN_list, columns=['R2', 'MSE', 'window_size', 'batch_size'])
+#         R2_ANN, MSE_ANN, y_predicted, training_history = ANN_regress(data, nodes, dropout_rate, window_size,
+#                                                              batch_size, number_of_epochs, regularization_penalty)
+#         Results_ANN_list.append([R2_ANN, MSE_ANN, nodes])
+#
+# Results_ANN = pd.DataFrame(Results_ANN_list, columns=['R2', 'MSE', 'nodes'])
 # Results_ANN = Results_ANN.sort_values(['R2'], ascending=False)
 
 plt.plot(training_history.history['mean_squared_error'])
@@ -375,7 +429,6 @@ plt.ylabel('mean_squared_error')
 plt.xlabel('Epoch')
 plt.legend(['Train', 'Test'], loc='upper left')
 plt.show()
-
 
 # number_of_nodes = [10, 50, 100]
 # number_of_layers = [2, 4]
