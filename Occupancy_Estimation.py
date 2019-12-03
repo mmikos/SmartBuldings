@@ -123,14 +123,14 @@ def plot_confusion_matrix(confusion_matrix,
 # "deviceId": 7663
 
 start_date = "2019-11-18 09:00"
-end_date = "2019-12-01 09:00"
+end_date = "2019-11-28 09:00"
 
 # AVUITY
 start = pd.to_datetime(start_date)
 end = pd.to_datetime(end_date)
 occupancy = pd.DataFrame()
 awair = pd.DataFrame()
-freq = 2
+freq = 5
 
 for day in range(int((end - start).days / freq)):
 
@@ -368,13 +368,6 @@ from sklearn.utils import shuffle
 # plt.hist(date_occupancy_agg.reset_index(drop=True).iloc[:, 0], bins='auto', color='lightblue', rwidth=0.85)
 # plt.show()
 
-number_of_nodes = 50
-dropout_rate = 0.
-number_of_epochs = 1000
-regularization_penalty = 0.
-window_size = 8
-batch_size = 32
-Results_ANN_list = []
 # scores_test, pred_test, confusion_matrix = ANN_classify(X_train, X_test, y_train, y_test, number_of_nodes,
 #                                                         number_of_layers, dropout_rate, number_of_epochs,
 #                                                         regularization_penalty)
@@ -394,24 +387,57 @@ def prepare_data(data, window_size):
     return np.array(batches), np.array(labels)
 
 
-batches, labels = prepare_data(data, window_size)
-
-X_train, X_test, y_train, y_test = train_test_split(batches, labels, test_size=1 / 3, random_state=42,
-                                                    shuffle=True)
-
-opt = SGD(learning_rate=0.001, momentum=0.99)
+number_of_epochs = 1000
+window_size_list = [4, 8, 16]
+batch_size = 32
+Results_MLP_list = []
 no_of_features = 2
+number_of_nodes_MLP_list = [20, 40, 60, 80]
 
-model_LSTM = LSTM(window_size, no_of_features, opt, number_of_nodes)
 
-model_LSTM.fit(X_train, X_test, y_train, y_test, number_of_epochs, 0)
+for number_of_nodes_MLP in tqdm(number_of_nodes_MLP_list):
 
-prediction = model_LSTM.predict(X_test)
+    for window_size in window_size_list:
 
-MSE, R2, residuals, good, bad = model_LSTM.evaluate(prediction, X_test, y_test)
+        batches, labels = prepare_data(data, window_size)
 
-R2_ANN, MSE_ANN, y_predicted, training_history = ANN_regress(data, number_of_nodes, dropout_rate, window_size,
-                                                             batch_size, number_of_epochs, regularization_penalty)
+        X_train, X_test, y_train, y_test = train_test_split(batches, labels, test_size=1 / 3, random_state=42, shuffle=True)
+
+        model_MLP = MLP(window_size, no_of_features, number_of_nodes_MLP)
+        training_history_MLP = model_MLP.fit(X_train, X_test, y_train, y_test, number_of_epochs)
+        prediction_MLP = model_MLP.predict(X_test)
+        MSE_MLP, R2_MLP, _, _, _ = model_MLP.evaluate(prediction_MLP, X_test, y_test)
+
+        Results_MLP_list.append([R2_MLP, MSE_MLP, number_of_nodes_MLP, window_size])
+#
+Results_ANN = pd.DataFrame(Results_MLP_list, columns=['R2', 'MSE', 'nodes', 'window'])
+Results_ANN = Results_ANN.sort_values(['R2'], ascending=False)
+
+
+
+number_of_nodes_LSTM = 50
+model_LSTM = LSTM(window_size, no_of_features, number_of_nodes_LSTM)
+training_history_LSTM = model_LSTM.fit(X_train, X_test, y_train, y_test, number_of_epochs)
+prediction_LSTM = model_LSTM.predict(X_test)
+MSE_LSTM, R2_LSTM, _, _, _ = model_LSTM.evaluate(prediction_LSTM, X_test, y_test)
+
+number_of_filters_CNN = 64
+model_CNN = CNN(window_size, no_of_features, number_of_filters_CNN)
+training_history_CNN = model_CNN.fit(X_train, X_test, y_train, y_test, number_of_epochs)
+prediction_CNN = model_CNN.predict(X_test)
+MSE_CNN, R2_CNN, _, _, _ = model_CNN.evaluate(prediction_CNN, X_test, y_test)
+
+number_of_filters_CNN_LSTM = 64
+number_of_nodes_CNN_LSTM = 50
+model_CNN_LSTM = CNN_LSTM(window_size, no_of_features, number_of_filters_CNN_LSTM, number_of_nodes_CNN_LSTM)
+training_history_CNN_LSTM = model_CNN_LSTM.fit(X_train, X_test, y_train, y_test, number_of_epochs)
+prediction_CNN_LSTM = model_CNN_LSTM.predict(X_test)
+MSE_CNN_LSTM, R2_CNN_LSTM, residuals, _, _ = model_CNN_LSTM.evaluate(prediction_CNN_LSTM, X_test, y_test)
+
+model_CNN_LSTM.plot_results(y_test, residuals, prediction_CNN_LSTM)
+
+# R2_ANN, MSE_ANN, y_predicted, training_history = ANN_regress(data, number_of_nodes, dropout_rate, window_size,
+#                                                              batch_size, number_of_epochs, regularization_penalty)
 
 # for nodes in tqdm(number_of_nodes):
 #
@@ -422,8 +448,8 @@ R2_ANN, MSE_ANN, y_predicted, training_history = ANN_regress(data, number_of_nod
 # Results_ANN = pd.DataFrame(Results_ANN_list, columns=['R2', 'MSE', 'nodes'])
 # Results_ANN = Results_ANN.sort_values(['R2'], ascending=False)
 
-plt.plot(training_history.history['mean_squared_error'])
-plt.plot(training_history.history['val_mean_squared_error'])
+plt.plot(training_history_CNN_LSTM.history['mean_squared_error'])
+plt.plot(training_history_CNN_LSTM.history['val_mean_squared_error'])
 plt.title('Model accuracy')
 plt.ylabel('mean_squared_error')
 plt.xlabel('Epoch')
