@@ -35,28 +35,28 @@ def Decision_Tree_Regression(X, y, max_depth, n_estimators, plot, sensor_name: s
 
     y_predicted = boost_decision_tree_regression.predict(X_test)
 
-    X_test_sorted, y_predicted_sorted = sort_for_plotting(X_test, y_predicted)
+    # X_test_sorted, y_predicted_sorted = sort_for_plotting(X_test, y_predicted)
 
     # Validate model
     R2_decision_tree = r2_score(y_test, y_predicted)
     MSE_decision_tree = math.sqrt(mean_squared_error(y_test, y_predicted))
 
-    def plot_decision_tree():
-        # Plot original data
-        plt.scatter(X_test, y_test, color='red')
-        # Plot predicted regression function
-        plt.plot(X_test_sorted, y_predicted_sorted, label=f"Depth {max_depth} with {n_estimators} estimators" +
-                                                          f" $R^2$: {round(R2_decision_tree, 3)}, "
-                                                          f"MSE: {round(MSE_decision_tree, 3)}")
-        plt.legend(loc='upper right')
-        plt.xlabel(f"{sensor_name}")
-        plt.ylabel(f"{score_name}")
-        plt.title(f'Satisfaction vs indoor conditions (Boosted Decision Tree Regression)')
-        return
-
-    if plot == 'plot':
-        plot_decision_tree()
-    if plot == 'show':
-        plot_decision_tree()
-        plt.show()
-    return R2_decision_tree, MSE_decision_tree
+    # def plot_decision_tree():
+    #     # Plot original data
+    #     plt.scatter(X_test, y_test, color='red')
+    #     # Plot predicted regression function
+    #     plt.plot(X_test_sorted, y_predicted_sorted, label=f"Depth {max_depth} with {n_estimators} estimators" +
+    #                                                       f" $R^2$: {round(R2_decision_tree, 3)}, "
+    #                                                       f"MSE: {round(MSE_decision_tree, 3)}")
+    #     plt.legend(loc='upper right')
+    #     plt.xlabel(f"{sensor_name}")
+    #     plt.ylabel(f"{score_name}")
+    #     plt.title(f'Satisfaction vs indoor conditions (Boosted Decision Tree Regression)')
+    #     return
+    #
+    # if plot == 'plot':
+    #     plot_decision_tree()
+    # if plot == 'show':
+    #     plot_decision_tree()
+    #     plt.show()
+    return R2_decision_tree, MSE_decision_tree, y_predicted

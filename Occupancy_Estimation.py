@@ -1,35 +1,13 @@
-# Data manipulation
-import json
-import datetime
-
 import matplotlib.pylab as pylab
-# Visualization
-import matplotlib.pyplot as plt
-from keras.optimizers import SGD
-from sklearn.metrics import mean_squared_error, r2_score, accuracy_score, confusion_matrix, precision_score
-import math
-import statsmodels.api as sm
-import numpy as np
 import pandas as pd
-import requests
-from pandas.io.json import json_normalize
-# Preprocessing
-from pandas.io.json import json_normalize
-from sklearn.metrics import r2_score
-import seaborn as sns
-# Models
+from sklearn import preprocessing
+from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import train_test_split
-from sklearn import linear_model, preprocessing
-import scipy.stats as stats
-from sklearn.preprocessing import StandardScaler, PolynomialFeatures
-from sklearn.cluster import KMeans
-from sklearn.utils.multiclass import unique_labels
-from tqdm import tqdm
-
-from Artificial_Neural_Network import ANN
-from Artificial_Neural_Network_Classification import ANN_classify
+from sklearn.svm import SVR, SVC
+import math
 from Artificial_Neural_Network_Regression import *
-from Sort import sort_for_plotting
+from Decision_Tree_Regression import Decision_Tree_Regression
+from Get_Data_From_API import get_data_from_API
 
 params = {'legend.fontsize': 'x-large',
           'figure.figsize': (12, 10),
@@ -38,9 +16,7 @@ params = {'legend.fontsize': 'x-large',
           'xtick.labelsize': 'x-small',
           'ytick.labelsize': 'small'}
 pylab.rcParams.update(params)
-from datetime import datetime, timedelta
 import warnings
-import urllib
 
 warnings.filterwarnings('ignore')
 
@@ -91,250 +67,228 @@ def plot_confusion_matrix(confusion_matrix,
     return ax
 
 
-# "devices":
-# "name": "OLY-A-414",
-# "uuid": "awair-omni_9049",
-# "timezone": "Europe/Amsterdam",
-# "deviceType": "awair-omni",
-# "deviceId": 9049
-#
-# "name": "OLY-A-416",
-# "uuid": "awair-omni_7675",
-# "timezone": "Europe/Amsterdam",
-# "deviceType": "awair-omni",
-# "deviceId": 7675
-#
-# "name": "OLY-A-413",
-# "uuid": "awair-omni_9033",
-# "timezone": "Europe/Amsterdam",
-# "deviceType": "awair-omni",
-# "deviceId": 9033
-#
-# "name": "OLY-A-415",
-# "uuid": "awair-omni_8989",
-# "timezone": "Europe/Amsterdam",
-# "deviceType": "awair-omni",
-# "deviceId": 8989
-#
-# "name": "OLY-A-417",
-# "uuid": "awair-omni_7663",
-# "timezone": "Europe/Amsterdam",
-# "deviceType": "awair-omni",
-# "deviceId": 7663
-
 start_date = "2019-11-18 09:00"
-end_date = "2019-11-28 09:00"
-
-# AVUITY
-start = pd.to_datetime(start_date)
-end = pd.to_datetime(end_date)
-occupancy = pd.DataFrame()
-awair = pd.DataFrame()
+end_date = "2019-12-09 09:00"
 freq = 5
+sampling_rate = '30T'
+# devices_list = pd.DataFrame([['OLY-A-413', 'OLY-A-414', 'OLY-A-415', 'OLY-A-416', 'OLY-A-417'],
+#                              ['9033', '9049', '8989', '7675', '7663'],
+#                              ['ROOM 1', 'ROOM 2', 'ROOM 3', 'ROOM 4', 'ROOM 5']])
+devices_list = pd.DataFrame([['OLY-A-415'],
+                             ['8989'],
+                             ['ROOM 3']])
+load = get_data_from_API(start_date, end_date, freq, devices_list, sampling_rate)
 
-for day in range(int((end - start).days / freq)):
+occupancy = load.get_avuity_data()
+co2, noise, humidity, temperature = load.get_awair_data()
 
-    date = start
-    next_date = date + timedelta(days=freq)
+co2 = co2.between_time('9:00', '17:00')
+co2 = co2[co2.index.dayofweek < 5]
 
-    start_url = urllib.parse.quote(str(date))
-    next_url = urllib.parse.quote(str(next_date))
+noise = noise.between_time('9:00', '17:00')
+noise = noise[noise.index.dayofweek < 5]
 
-    response = requests.get("https://edgetech.avuity.com/VuSpace/api/report-occupancy-by-area/index?access-token"
-                            f"=Futo24i1PcUZ_HnZ&startTs={start_url}&endTs={next_url}")
+humidity = humidity.between_time('9:00', '17:00')
+humidity = humidity[humidity.index.dayofweek < 5]
 
-    # print(response.status_code)
+temperature = temperature.between_time('9:00', '17:00')
+temperature = temperature[temperature.index.dayofweek < 5]
 
-    occupancy_json = response.json()
-    occupancy_str = json.dumps(occupancy_json)
-    occupancy_data_dict = json.loads(occupancy_str)
-    occupancy_data_normalised = json_normalize(occupancy_data_dict['items'])
-    occupancy2 = pd.DataFrame.from_dict(occupancy_data_normalised)
+occupancy = occupancy.between_time('9:00', '17:00')
+occupancy = occupancy[occupancy.index.dayofweek < 5]
 
-    occupancy = occupancy.append(occupancy2, ignore_index=False)
-    # start = date + timedelta(days=5)
+measurements = co2.join(humidity, how='left', lsuffix='_co2', rsuffix='_noise')
+measurements_humidity = measurements.join(humidity, how='left', lsuffix='_noise', rsuffix='_humidity')
+measurements_temperature = measurements_humidity.join(temperature, how='left', lsuffix='_humidity', rsuffix='_temperature')
 
-    # AWAIR
+data = measurements.join(occupancy, how='inner')
+# data = measurements.join(occupancy, how='inner')
 
-    start_iso = date.isoformat()
-    end_iso = next_date.isoformat()
+# data[:, 0:no_features]
 
-    headers = {
-        'Authorization': 'Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNTE4MDgifQ.HnZ_258AsEfbYLzmpK_g4jbTItIYbEQh_UaxCDO0S88',
-    }
 
-    params = (
-        ('from', start_iso),
-        ('to', end_iso),
-    )
+def prepare_data(data, window_size):
+    batches = []
+    labels = []
+    no_features = data.shape[1] - 1
+    for idx in range(len(data) - window_size - 1):
+        batches.append(data[idx: idx + window_size, 0:no_features])
+        labels.append(data[idx + window_size, no_features])
+    return np.array(batches), np.array(labels)
 
-    # devices_list = pd.DataFrame([['OLY-A-413', 'OLY-A-414', 'OLY-A-415', 'OLY-A-416', 'OLY-A-417'],
-    #                              ['9033', '9049', '8989', '7675', '7663']])
-    devices_list = pd.DataFrame([['OLY-A-415'],
-                                 ['8989']])
 
-    awair_dataset = pd.DataFrame(columns=['comp', 'value', 'timestamp', 'score'])
+max_depth = 6
+n_estimators = 150
 
-    for device_id in devices_list.iloc[1, :]:
-        response_awair = requests.get(
-            f'http://developer-apis.awair.is/v1/orgs/1097/devices/awair-omni/{device_id}/air-data'
-            f'/15-min-avg', headers=headers, params=params)
-        awair_json = response_awair.json()
-        awair_str = json.dumps(awair_json)
-        awair_data_dict = json.loads(awair_str)
-        awair_norm = pd.io.json.json_normalize(awair_data_dict["data"], record_path="sensors",
-                                               meta=['timestamp', 'score'])
-        awair_sensor_code = [device_id for _ in range(len(awair_norm))]
-        awair_norm['sensor_name'] = awair_sensor_code
-        awair_dataset = awair_dataset.append(awair_norm, ignore_index=True)
+scaler = preprocessing.StandardScaler()
+    # MinMaxScaler(feature_range=(0, ))
+data = data.to_numpy()
+no_features = data.shape[1] - 1
+data[:, 0:no_features] = scaler.fit_transform(data[:, 0:no_features])
 
-    awair = awair.append(awair_dataset, ignore_index=False)
-    start = date + timedelta(days=freq)
+# data[:, 0:no_features]
 
-# print(response_awair.status_code)
+Results_MLP_list = []
+Results_LSTM_list = []
+Results_CNN_list = []
+Results_CNN_LSTM_list = []
 
-# rooms = ['ROOM 1', 'ROOM 2', 'ROOM 3', 'ROOM 4', 'ROOM 5']
-rooms = ['ROOM 3']
+number_of_epochs = 1000
+window_size = 64
+batch_size = 64
 
-occupancy_selected2 = pd.DataFrame(columns=['occupancy'])
+# binary vs discrete
+# try only co2
+# try with humidity
 
-for room in rooms:
-    occupancy_selected = occupancy.loc[occupancy['areaName'] == f'{room}', ['startTs', 'occupancy']]
-    date_occupancy_selected = occupancy_selected.set_index('startTs')
+# for window_size in window_size_list:
+#     for batch_size in batch_size_list:
+#         for number_of_nodes in number_of_nodes_MLP_list:
 
-    date_occupancy_selected.index = pd.to_datetime(date_occupancy_selected.index, utc=True)
 
-    date_occupancy_agg = date_occupancy_selected.resample('30T').mean().ffill().astype(int)
+# R2_decision_tree, MSE_decision_tree, y_predicted = Decision_Tree_Regression(data[:, 0:no_features].reshape(-1, 2),
+#                                                                             data[:, no_features].reshape(-1, 1),
+#                                                                             max_depth,
+#                                                                             n_estimators, 'plot', 'measure', 'occ')
 
-    occupancy_selected2 = occupancy_selected2.append(date_occupancy_agg.reset_index(), ignore_index=False)
-# occupancy_selected = occupancy[['startTs', 'occupancy', 'areaName']]
+# X_trainS, X_testS, y_trainS, y_testS = train_test_split(data[:, 0:no_features], data[:, no_features], test_size=1 / 3,
+#                                                         random_state=42, shuffle=True)
 
-occupancy_selected = occupancy_selected2.sort_values(by='startTs')
+# clf = SVR(C=100, kernel='poly', degree=6,  epsilon=0.1, verbose=True)
+# clf.fit(X_trainS.reshape(-1, 2), y_trainS.reshape(-1, 1))
+# prediction_SVM = clf.predict(X_testS.reshape(-1, 2))
+# R2_SVM = r2_score(y_testS, prediction_SVM)
+# MSE_SVM = math.sqrt(mean_squared_error(y_testS, prediction_SVM))
 
-# read the dataset
-# measurements = pd.read_csv('data_sets/19_20/OLY-A-415.csv', sep=',', decimal='.')
-# co2 = measurements[['timestamp(Europe/Berlin)', 'co2', 'noise']]
-# date_co2 = co2[(co2['timestamp(Europe/Berlin)'] >= '2019-11-19 09:00')
-#                & (co2['timestamp(Europe/Berlin)'] <= '2019-11-21 17:45')]
+# clfclass = SVC(C=100, kernel='sigmoid', degree=3, verbose=True)
+# clfclass.fit(X_trainS, y_trainS.astype('int'))
+# prediction_SVMclass = clfclass.predict(X_testS.reshape(-1, 2))
+# R2_SVMclass = r2_score(y_testS, prediction_SVM)
+# MSE_SVMclass = math.sqrt(mean_squared_error(y_testS, prediction_SVM))
 
-awair = awair.sort_values(by='timestamp', ascending=True)
+batches, labels = prepare_data(data, window_size)
 
-awair = awair.set_index('timestamp')
+X_train, X_test, y_train, y_test = train_test_split(batches, labels, test_size=1 / 3, random_state=42)
 
-# awair['timestamp'] = pd.to_datetime(awair['timestamp'], format='%Y-%m-%d %H:%M', utc=True)
+number_of_nodes_MLP = 64
+model_MLP = MLP(window_size, no_features, number_of_nodes_MLP)
+training_history_MLP = model_MLP.fit(X_train, X_test, y_train, y_test, number_of_epochs, batch_size)
+prediction_MLP = model_MLP.predict(X_test)
+MSE_MLP, R2_MLP, residuals_MLP, accuracy_MLP, mean_error_MLP = model_MLP.evaluate(prediction_MLP, X_test, y_test)
 
-awair.index = pd.to_datetime(awair.index, utc=True)
+# # Results_MLP_list.append([R2_MLP, MSE_MLP, window_size, batch_size, number_of_nodes])
 
-co2 = awair.loc[awair['comp'] == 'co2', ['value']]
-co2 = co2.resample('30T').mean().ffill().astype(int)
+number_of_nodes_LSTM = 32
+model_LSTM = LSTM(window_size, no_features, number_of_nodes_LSTM)
+training_history_LSTM = model_LSTM.fit(X_train, X_test, y_train, y_test, number_of_epochs, batch_size)
+prediction_LSTM = model_LSTM.predict(X_test)
+MSE_LSTM, R2_LSTM, residuals_LSTM, accuracy_LSTM, mean_error_LSTM = model_LSTM.evaluate(prediction_LSTM, X_test, y_test)
 
-noise = awair.loc[awair['comp'] == 'spl_a', ['value']]
-noise = noise.resample('30T').mean().ffill().astype(int)
-# date_co2 = co2[(co2['timestamp(Europe/Berlin)'] >= '2019-11-19 09:00')
-#                & (co2['timestamp(Europe/Berlin)'] <= '2019-11-21 17:45')]
-# pd.to_datetime(date_co2.iloc[:, 0], format='%d/%m/%Y %H:%M').dt.time
+# # Results_LSTM_list.append([MSE_LSTM, R2_LSTM, window_size, batch_size, number_of_nodes])
 
+number_of_filters_CNN = 64
+model_CNN = CNN(window_size, no_features, number_of_filters_CNN)
+training_history_CNN = model_CNN.fit(X_train, X_test, y_train, y_test, number_of_epochs, batch_size)
+prediction_CNN = model_CNN.predict(X_test)
+MSE_CNN, R2_CNN, residuals_CNN, accuracy_CNN, mean_error_CNN = model_CNN.evaluate(prediction_CNN, X_test, y_test)
+
+# Results_CNN_list.append([MSE_CNN, R2_CNN, window_size, batch_size, number_of_nodes])
+
+number_of_filters_CNN_LSTM = 64
+number_of_nodes_CNN_LSTM = 64
+model_CNN_LSTM = CNN_LSTM(window_size, no_features, number_of_filters_CNN_LSTM, number_of_nodes_CNN_LSTM)
+training_history_CNN_LSTM = model_CNN_LSTM.fit(X_train, X_test, y_train, y_test, number_of_epochs)
+prediction_CNN_LSTM = model_CNN_LSTM.predict(X_test)
+MSE_CNN_LSTM, R2_CNN_LSTM, residuals_CNN_LSTM, accuracy_CNN_LSTM, mean_error_CNN_LSTM = model_CNN_LSTM.evaluate(prediction_CNN_LSTM, X_test, y_test)
+
+# Results_CNN_LSTM_list.append([MSE_CNN_LSTM, MSE_MLP, window_size, batch_size, number_of_nodes_CNN_LSTM, number_of_filters_CNN_LSTM])
+
+# Results_MLP = pd.DataFrame(Results_MLP_list, columns=['R2', 'MSE', 'window_size', 'batch_size', 'number_of_nodes_MLP'])
+# Results_MLP = Results_MLP.sort_values(['R2'], ascending=False)
+
+
+model_CNN_LSTM.plot_results(y_test, residuals_CNN_LSTM, prediction_CNN_LSTM)
+
+plt.figure(figsize=(12, 10))
+plt.plot(training_history_LSTM.history['loss'])
+plt.plot(training_history_LSTM.history['val_loss'])
+plt.title('Model accuracy')
+plt.ylabel('mean_squared_error')
+plt.xlabel('Epoch')
+plt.legend(['Train', 'Test'], loc='upper left')
+
+plt.figure(figsize=(12, 10))
+plt.plot(y_test, label='Real values', color='green')
+plt.plot(np.round(prediction_LSTM, 0), label='Predicted values', color='red')
+plt.title('Real vs predicted using LSTM')
+plt.legend()
+
+plt.figure(figsize=(12, 10))
+plt.plot(y_test, label='Real values', color='green')
+plt.plot(np.round(prediction_MLP, 0), label='Predicted values', color='red')
+plt.title('Real vs predicted using MLP')
+plt.legend()
+
+plt.figure(figsize=(12, 10))
+plt.plot(y_test, label='Real values', color='green')
+plt.plot(np.round(prediction_CNN_LSTM, 0), label='Predicted values', color='red')
+plt.title('Real vs predicted using CNN_LSTM')
+plt.legend()
+
+plt.figure(figsize=(12, 10))
+plt.plot(y_test, label='Real values', color='green')
+plt.plot(np.round(prediction_CNN, 0), label='Predicted values', color='red')
+plt.title('Real vs predicted using CNN')
+plt.legend()
+
+plt.show()
+
+print('whatever')
+
+# R2_ANN, MSE_ANN, y_predicted, training_history = ANN_regress(data, number_of_nodes, dropout_rate, window_size,
+#                                                              batch_size, number_of_epochs, regularization_penalty)
+
+# for nodes in tqdm(number_of_nodes):
 #
-# fig, ax1 = plt.subplots()
-# color = 'tab:red'
-# ax1.set_xlabel('time')
-# ax1.set_ylabel('Occupancy', color=color)
+#         R2_ANN, MSE_ANN, y_predicted, training_history = ANN_regress(data, nodes, dropout_rate, window_size,
+#                                                              batch_size, number_of_epochs, regularization_penalty)
+#         Results_ANN_list.append([R2_ANN, MSE_ANN, nodes])
 #
-# ax1.plot(occupancy_selected.reset_index(drop=True).iloc[:, 1],
-#          occupancy_selected.reset_index(drop=True).iloc[:, 0], color=color)
-# ax1.tick_params(axis='y', labelcolor=color)
+# Results_ANN = pd.DataFrame(Results_ANN_list, columns=['R2', 'MSE', 'nodes'])
+# Results_ANN = Results_ANN.sort_values(['R2'], ascending=False)
+
+
+# number_of_nodes = [10, 50, 100]
+# number_of_layers = [2, 4]
+# dropout_rate = [0.1, 0.2]
+# number_of_epochs = [1000, 2000]
+# regularization_penalty = [0.001, 0.0001, 0.00001]
+# Results_ANN_list = []
+# X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=1 / 3, shuffle=True)
+# # Fit ANN model
+# plt.figure(figsize=(12, 10))
 #
-# ax2 = ax1.twinx()
-# color = 'tab:blue'
-# ax2.set_ylabel('CO2', color=color)
+# for nodes in tqdm(number_of_nodes):
+#     for layers in number_of_layers:
+#         for dropout in dropout_rate:
+#             for epochs in number_of_epochs:
+#                 for regularization in regularization_penalty:
+#                     scores_test, pred_test, confusion_matrix = ANN_classify(X_train, X_test, y_train, y_test, nodes, layers, dropout, epochs,
+#                                                                             regularization)
+#                     Results_ANN_list.append([nodes, layers, dropout, epochs, regularization, scores_test,
+#                                              confusion_matrix])
 #
-# ax2.plot(co2.iloc[:, 0], co2.iloc[:, 1], color=color)
-# ax2.tick_params(axis='y', labelcolor=color)
-#
-# fig.tight_layout()
-# plt.title(f'Occupancy vs CO_2')
-# # plt.legend()
 # # plt.show()
-#
-# fig, ax1 = plt.subplots()
-# color = 'tab:red'
-# ax1.set_xlabel('time')
-# ax1.set_ylabel('Occupancy', color=color)
-#
-# ax1.plot(occupancy_selected.reset_index(drop=True).iloc[:, 1],
-#          occupancy_selected.reset_index(drop=True).iloc[:, 0], color=color)
-# ax1.tick_params(axis='y', labelcolor=color)
-#
-# ax2 = ax1.twinx()
-# color = 'tab:blue'
-# ax2.set_ylabel('noise', color=color)
-#
-# ax2.plot(noise.iloc[:, 0], noise.iloc[:, 1], color=color)
-# ax2.tick_params(axis='y', labelcolor=color)
-#
-# fig.tight_layout()
-# plt.title(f'Occupancy vs Noise')
-# plt.legend()
+# Results_ANN = pd.DataFrame(Results_ANN_list, columns=['Number of nodes', 'Number of layers', 'Dropout rate',
+#                                                       'Number of epochs', 'Regularization penalty', 'scores_test',
+#                                                       'confusion_matrix'])
+# Results_ANN.sort_values(['scores_test'], ascending=False)
+
+# Plot normalized confusion matrix
+# plot_confusion_matrix(confusion_matrix, normalize=True, title='Normalized confusion matrix')
+
 # plt.show()
 
-
-# outlier_detection = DBSCAN(eps = .2, metric = 'euclidean', min_samples = 5, n_jobs = -1)
-outlier_detection = KMeans(n_clusters=6, random_state=0)
-
-# sns.boxplot(x= occupancy_selected.reset_index(drop=True).iloc[:, 0])
-# plt.show()
-
-# z = np.abs(stats.zscore(reg_data_no_na[['co2']]))
-# print(z)
-# threshold = 3
-# print(np.where(z > 3))
-
-# reg_data_no_na = reg_data_no_na[(z < 3).all(axis=1)]
-
-# scaler_sound = StandardScaler()
-# scaler_co2 = StandardScaler()
-#
-# sound = scaler_sound.fit_transform(reg_data_no_na[['noise']])
-# sound = reg_data_no_na[['timestamp(Europe/Berlin)']]
-# co2 = scaler_co2.fit_transform(reg_data_no_na[['co2']])
-
-# outlier_set = np.column_stack((noise.iloc[:, 1], co2.iloc[:, 1]))
-
-# clusters = outlier_detection.fit_predict(co2[['value']])
-
-# cmap = cm.get_cmap('Set1')
-# outlier_set[:, 0] = scaler_sound.inverse_transform(outlier_set[:, 0])
-# outlier_set[:, 1] = scaler_co2.inverse_transform(outlier_set[:, 1])
-# plt.scatter(outlier_set[:, 0], outlier_set[:, 1], c=clusters, cmap='viridis')
-# plt.show()
-
-# reg_data_no_na = reg_data_no_na - np.mean(reg_data_no_na)
-
-# scaler_predictors = StandardScaler()
-# scaler_output = StandardScaler()
-# co2_date = co2.set_index('timestampestamp')
-# noise_date = noise.set_index('timestamp')
-occupancy_selected_date = occupancy_selected.set_index('startTs')
-
-# co2_date = co2_date.between_time('9:15', '16:45')
-# noise_date = noise_date.between_time('9:15', '16:45')
-# occupancy_selected_date = occupancy_selected_date.between_time('9:15', '16:45')
-
-# measurements_labels = np.column_stack((co2_date, noise_date, date_occupancy_agg))
-measurements = co2.join(noise, how='left', lsuffix='_co2', rsuffix='_noise')
-
-measurements_labels = measurements.join(occupancy_selected_date, how='left')
-
-X = measurements
-y = occupancy_selected
-data = measurements_labels
-
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.svm import SVC
-from sklearn.gaussian_process import GaussianProcessClassifier
-from sklearn.gaussian_process.kernels import RBF
-from sklearn.neural_network import MLPClassifier
-from sklearn.utils import shuffle
 
 # measurements = pd.DataFrame(np.column_stack((measurements, y)))
 
@@ -372,150 +326,35 @@ from sklearn.utils import shuffle
 #                                                         number_of_layers, dropout_rate, number_of_epochs,
 #                                                         regularization_penalty)
 
-scaler = preprocessing.MinMaxScaler(feature_range=(0, 1))
-data = data.to_numpy()
-no_features = data.shape[1] - 1
-data[:, 0:no_features] = scaler.fit_transform(data[:, 0:no_features])
 
-
-def prepare_data(data, window_size):
-    batches = []
-    labels = []
-    for idx in range(len(data) - window_size - 1):
-        batches.append(data[idx: idx + window_size, 0:no_features])
-        labels.append(data[idx + window_size, no_features])
-    return np.array(batches), np.array(labels)
-
-
-number_of_epochs = 1000
-window_size_list = [4, 8, 16]
-batch_size = 32
-Results_MLP_list = []
-no_of_features = 2
-number_of_nodes_MLP_list = [20, 40, 60, 80]
-
-
-for number_of_nodes_MLP in tqdm(number_of_nodes_MLP_list):
-
-    for window_size in window_size_list:
-
-        batches, labels = prepare_data(data, window_size)
-
-        X_train, X_test, y_train, y_test = train_test_split(batches, labels, test_size=1 / 3, random_state=42, shuffle=True)
-
-        model_MLP = MLP(window_size, no_of_features, number_of_nodes_MLP)
-        training_history_MLP = model_MLP.fit(X_train, X_test, y_train, y_test, number_of_epochs)
-        prediction_MLP = model_MLP.predict(X_test)
-        MSE_MLP, R2_MLP, _, _, _ = model_MLP.evaluate(prediction_MLP, X_test, y_test)
-
-        Results_MLP_list.append([R2_MLP, MSE_MLP, number_of_nodes_MLP, window_size])
+# degree = 3
+# # Perform polynomial transformation
+# polynomial_features = PolynomialFeatures(degree=degree)
+# sensor_values_polynomial = polynomial_features.fit_transform(X_train)
 #
-Results_ANN = pd.DataFrame(Results_MLP_list, columns=['R2', 'MSE', 'nodes', 'window'])
-Results_ANN = Results_ANN.sort_values(['R2'], ascending=False)
-
-
-
-number_of_nodes_LSTM = 50
-model_LSTM = LSTM(window_size, no_of_features, number_of_nodes_LSTM)
-training_history_LSTM = model_LSTM.fit(X_train, X_test, y_train, y_test, number_of_epochs)
-prediction_LSTM = model_LSTM.predict(X_test)
-MSE_LSTM, R2_LSTM, _, _, _ = model_LSTM.evaluate(prediction_LSTM, X_test, y_test)
-
-number_of_filters_CNN = 64
-model_CNN = CNN(window_size, no_of_features, number_of_filters_CNN)
-training_history_CNN = model_CNN.fit(X_train, X_test, y_train, y_test, number_of_epochs)
-prediction_CNN = model_CNN.predict(X_test)
-MSE_CNN, R2_CNN, _, _, _ = model_CNN.evaluate(prediction_CNN, X_test, y_test)
-
-number_of_filters_CNN_LSTM = 64
-number_of_nodes_CNN_LSTM = 50
-model_CNN_LSTM = CNN_LSTM(window_size, no_of_features, number_of_filters_CNN_LSTM, number_of_nodes_CNN_LSTM)
-training_history_CNN_LSTM = model_CNN_LSTM.fit(X_train, X_test, y_train, y_test, number_of_epochs)
-prediction_CNN_LSTM = model_CNN_LSTM.predict(X_test)
-MSE_CNN_LSTM, R2_CNN_LSTM, residuals, _, _ = model_CNN_LSTM.evaluate(prediction_CNN_LSTM, X_test, y_test)
-
-model_CNN_LSTM.plot_results(y_test, residuals, prediction_CNN_LSTM)
-
-# R2_ANN, MSE_ANN, y_predicted, training_history = ANN_regress(data, number_of_nodes, dropout_rate, window_size,
-#                                                              batch_size, number_of_epochs, regularization_penalty)
-
-# for nodes in tqdm(number_of_nodes):
+# # Fit the model
+# model = sm.OLS(y_train, sensor_values_polynomial).fit()
+# # fit_regularized(alpha=0.2, L1_wt=0.5)
+# test0 = np.array([[1], [22], [60]]).T
+# score_values_predicted = model.predict(polynomial_features.fit_transform(X_test))
 #
-#         R2_ANN, MSE_ANN, y_predicted, training_history = ANN_regress(data, nodes, dropout_rate, window_size,
-#                                                              batch_size, number_of_epochs, regularization_penalty)
-#         Results_ANN_list.append([R2_ANN, MSE_ANN, nodes])
+# rsquared = model.rsquared_adj
+# MSE = math.sqrt(mean_squared_error(y_test, score_values_predicted))
 #
-# Results_ANN = pd.DataFrame(Results_ANN_list, columns=['R2', 'MSE', 'nodes'])
-# Results_ANN = Results_ANN.sort_values(['R2'], ascending=False)
-
-plt.plot(training_history_CNN_LSTM.history['mean_squared_error'])
-plt.plot(training_history_CNN_LSTM.history['val_mean_squared_error'])
-plt.title('Model accuracy')
-plt.ylabel('mean_squared_error')
-plt.xlabel('Epoch')
-plt.legend(['Train', 'Test'], loc='upper left')
-plt.show()
-
-# number_of_nodes = [10, 50, 100]
-# number_of_layers = [2, 4]
-# dropout_rate = [0.1, 0.2]
-# number_of_epochs = [1000, 2000]
-# regularization_penalty = [0.001, 0.0001, 0.00001]
-# Results_ANN_list = []
-# X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=1 / 3, shuffle=True)
-# # Fit ANN model
-# plt.figure(figsize=(12, 10))
+# print(model.summary())
+# X_test_sorted, y_predicted_sorted = sort_for_plotting(X_test, score_values_predicted)
+# # Plot original data
+# plt.scatter(X_test, y_test, color='red')
+# # plt.scatter(X[:, 1], y, color='blue')
 #
-# for nodes in tqdm(number_of_nodes):
-#     for layers in number_of_layers:
-#         for dropout in dropout_rate:
-#             for epochs in number_of_epochs:
-#                 for regularization in regularization_penalty:
-#                     scores_test, pred_test, confusion_matrix = ANN_classify(X_train, X_test, y_train, y_test, nodes, layers, dropout, epochs,
-#                                                                             regularization)
-#                     Results_ANN_list.append([nodes, layers, dropout, epochs, regularization, scores_test,
-#                                              confusion_matrix])
+# plt.plot(X_test_sorted, y_predicted_sorted,
+#          label=f"Degree {1}," + f" $R^2$: {round(rsquared, 3)}, MSE: {round(MSE, 3)}")
 #
-# # plt.show()
-# Results_ANN = pd.DataFrame(Results_ANN_list, columns=['Number of nodes', 'Number of layers', 'Dropout rate',
-#                                                       'Number of epochs', 'Regularization penalty', 'scores_test',
-#                                                       'confusion_matrix'])
-# Results_ANN.sort_values(['scores_test'], ascending=False)
-
-# Plot normalized confusion matrix
-# plot_confusion_matrix(confusion_matrix, normalize=True, title='Normalized confusion matrix')
-
+# plt.legend(loc='upper right')
+# plt.xlabel("CO_2")
+# plt.ylabel("Occupancy")
+# plt.title(f'Satisfaction vs indoor conditions (Polynomial Regression)')
 # plt.show()
-degree = 3
-# Perform polynomial transformation
-polynomial_features = PolynomialFeatures(degree=degree)
-sensor_values_polynomial = polynomial_features.fit_transform(X_train)
-
-# Fit the model
-model = sm.OLS(y_train, sensor_values_polynomial).fit()
-# fit_regularized(alpha=0.2, L1_wt=0.5)
-test0 = np.array([[1], [22], [60]]).T
-score_values_predicted = model.predict(polynomial_features.fit_transform(X_test))
-
-rsquared = model.rsquared_adj
-MSE = math.sqrt(mean_squared_error(y_test, score_values_predicted))
-
-print(model.summary())
-X_test_sorted, y_predicted_sorted = sort_for_plotting(X_test, score_values_predicted)
-# Plot original data
-plt.scatter(X_test, y_test, color='red')
-# plt.scatter(X[:, 1], y, color='blue')
-
-plt.plot(X_test_sorted, y_predicted_sorted,
-         label=f"Degree {1}," + f" $R^2$: {round(rsquared, 3)}, MSE: {round(MSE, 3)}")
-
-plt.legend(loc='upper right')
-plt.xlabel("CO_2")
-plt.ylabel("Occupancy")
-plt.title(f'Satisfaction vs indoor conditions (Polynomial Regression)')
-plt.show()
-
-print('whatever')
 
 # def get_single_measurement(data, measurement=str):
 #     measurement_name = data.loc[data['PortName'] == f'{measurement}', ['Datetime', 'PortName', 'Value']].pivot_table(
@@ -575,3 +414,65 @@ print('whatever')
 # # X = scaler_predictors.inverse_transform(X)
 # # y = scaler_output.inverse_transform(y)
 # # predictions = scaler_output.inverse_transform(predictions.reshape(-1, 1))
+
+# fig, ax1 = plt.subplots()
+# color = 'tab:red'
+# ax1.set_xlabel('time')
+# ax1.set_ylabel('Occupancy', color=color)
+#
+# ax1.plot(occupancy_selected.reset_index(drop=True).iloc[:, 1],
+#          occupancy_selected.reset_index(drop=True).iloc[:, 0], color=color)
+# ax1.tick_params(axis='y', labelcolor=color)
+#
+# ax2 = ax1.twinx()
+# color = 'tab:blue'
+# ax2.set_ylabel('CO2', color=color)
+#
+# ax2.plot(co2.iloc[:, 0], co2.iloc[:, 1], color=color)
+# ax2.tick_params(axis='y', labelcolor=color)
+#
+# fig.tight_layout()
+# plt.title(f'Occupancy vs CO_2')
+# # plt.legend()
+# # plt.show()
+#
+# fig, ax1 = plt.subplots()
+# color = 'tab:red'
+# ax1.set_xlabel('time')
+# ax1.set_ylabel('Occupancy', color=color)
+#
+# ax1.plot(occupancy_selected.reset_index(drop=True).iloc[:, 1],
+#          occupancy_selected.reset_index(drop=True).iloc[:, 0], color=color)
+# ax1.tick_params(axis='y', labelcolor=color)
+#
+# ax2 = ax1.twinx()
+# color = 'tab:blue'
+# ax2.set_ylabel('noise', color=color)
+#
+# ax2.plot(noise.iloc[:, 0], noise.iloc[:, 1], color=color)
+# ax2.tick_params(axis='y', labelcolor=color)
+#
+# fig.tight_layout()
+# plt.title(f'Occupancy vs Noise')
+# plt.legend()
+# plt.show()
+
+
+# outlier_detection = DBSCAN(eps = .2, metric = 'euclidean', min_samples = 5, n_jobs = -1)
+# outlier_detection = KMeans(n_clusters=6, random_state=0)
+
+# sns.boxplot(x= occupancy_selected.reset_index(drop=True).iloc[:, 0])
+# plt.show()
+
+# z = np.abs(stats.zscore(reg_data_no_na[['co2']]))
+# print(z)
+# threshold = 3
+# print(np.where(z > 3))
+
+# reg_data_no_na = reg_data_no_na[(z < 3).all(axis=1)]
+# clusters = outlier_detection.fit_predict(co2[['value']])
+
+
+# co2_date = co2_date.between_time('9:15', '16:45')
+# noise_date = noise_date.between_time('9:15', '16:45')
+# occupancy_selected_date = occupancy_selected_date.between_time('9:15', '16:45')
