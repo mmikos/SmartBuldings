@@ -67,66 +67,79 @@ def plot_confusion_matrix(confusion_matrix,
     return ax
 
 
+def filter_measurements_data(measure, name, business_hours, weekends):
+    if business_hours:
+        measure = measure.between_time('9:00', '17:00')
+
+    if weekends:
+        measure = measure[measure.index.dayofweek < 5]
+
+    measure = measure.rename(columns={'value': f'{name}'})
+
+    return measure
+
+
+def create_dataset(occupancy_data, *args):
+
+    measurements = args[0].join([args[1], args[2], args[3]], how='left')
+
+    data_set = measurements.join(occupancy_data, how='inner')
+
+    return data_set
+
+
+def prepare_data(data_set, size_window):
+    batches_list = []
+    labels_list = []
+    features_number = data_set.shape[1] - 1
+    for idx in range(len(data_set) - size_window - 1):
+        batches_list.append(data_set[idx: idx + size_window, 0:features_number])
+        labels_list.append(data_set[idx + size_window, features_number])
+    return np.array(batches_list), np.array(labels_list)
+
+
 start_date = "2019-11-18 09:00"
-end_date = "2019-12-09 09:00"
+end_date = "2019-12-11 09:00"
 freq = 5
 sampling_rate = '30T'
-# devices_list = pd.DataFrame([['OLY-A-413', 'OLY-A-414', 'OLY-A-415', 'OLY-A-416', 'OLY-A-417'],
-#                              ['9033', '9049', '8989', '7675', '7663'],
-#                              ['ROOM 1', 'ROOM 2', 'ROOM 3', 'ROOM 4', 'ROOM 5']])
-devices_list = pd.DataFrame([['OLY-A-415'],
-                             ['8989'],
-                             ['ROOM 3']])
+devices_list = pd.DataFrame([['OLY-A-413', 'OLY-A-414', 'OLY-A-415', 'OLY-A-416', 'OLY-A-417'],
+                             ['9033', '9049', '8989', '7675', '7663'],
+                             ['ROOM 1', 'ROOM 2', 'ROOM 3', 'ROOM 4', 'ROOM 5']])
+# devices_list = pd.DataFrame([['OLY-A-413'],
+#                              ['9033'],
+#                              ['ROOM 1']])
+# devices_list = pd.DataFrame([['OLY-A-414'],
+#                              ['9049'],
+#                              ['ROOM 2']])
+# devices_list = pd.DataFrame([['OLY-A-415'],
+#                              ['8989'],
+#                              ['ROOM 3']])
+# devices_list = pd.DataFrame([['OLY-A-416'],
+#                              ['7675'],
+#                              ['ROOM 4']])
+# devices_list = pd.DataFrame([['OLY-A-417'],
+#                              ['7663'],
+#                              ['ROOM 5']])
+
 load = get_data_from_API(start_date, end_date, freq, devices_list, sampling_rate)
 
 occupancy = load.get_avuity_data()
-co2, noise, humidity, temperature = load.get_awair_data()
+co2, noise, humidity, temperature  = load.get_awair_data()
 
-co2 = co2.between_time('9:00', '17:00')
-co2 = co2[co2.index.dayofweek < 5]
+co2 = filter_measurements_data(co2, 'co2', business_hours=True, weekends=True)
+noise = filter_measurements_data(noise, 'noise', business_hours=True, weekends=True)
+humidity = filter_measurements_data(humidity, 'humidity', business_hours=True, weekends=True)
+temperature = filter_measurements_data(temperature, 'temperature', business_hours=True, weekends=True)
 
-noise = noise.between_time('9:00', '17:00')
-noise = noise[noise.index.dayofweek < 5]
-
-humidity = humidity.between_time('9:00', '17:00')
-humidity = humidity[humidity.index.dayofweek < 5]
-
-temperature = temperature.between_time('9:00', '17:00')
-temperature = temperature[temperature.index.dayofweek < 5]
-
-occupancy = occupancy.between_time('9:00', '17:00')
-occupancy = occupancy[occupancy.index.dayofweek < 5]
-
-measurements = co2.join(humidity, how='left', lsuffix='_co2', rsuffix='_noise')
-measurements_humidity = measurements.join(humidity, how='left', lsuffix='_noise', rsuffix='_humidity')
-measurements_temperature = measurements_humidity.join(temperature, how='left', lsuffix='_humidity', rsuffix='_temperature')
-
-data = measurements.join(occupancy, how='inner')
-# data = measurements.join(occupancy, how='inner')
-
-# data[:, 0:no_features]
-
-
-def prepare_data(data, window_size):
-    batches = []
-    labels = []
-    no_features = data.shape[1] - 1
-    for idx in range(len(data) - window_size - 1):
-        batches.append(data[idx: idx + window_size, 0:no_features])
-        labels.append(data[idx + window_size, no_features])
-    return np.array(batches), np.array(labels)
-
+data = create_dataset(occupancy, co2, noise, humidity, temperature)
 
 max_depth = 6
 n_estimators = 150
 
 scaler = preprocessing.StandardScaler()
-    # MinMaxScaler(feature_range=(0, ))
 data = data.to_numpy()
 no_features = data.shape[1] - 1
 data[:, 0:no_features] = scaler.fit_transform(data[:, 0:no_features])
-
-# data[:, 0:no_features]
 
 Results_MLP_list = []
 Results_LSTM_list = []
@@ -138,33 +151,31 @@ window_size = 64
 batch_size = 64
 
 # binary vs discrete
-# try only co2
-# try with humidity
+
 
 # for window_size in window_size_list:
 #     for batch_size in batch_size_list:
 #         for number_of_nodes in number_of_nodes_MLP_list:
 
 
-# R2_decision_tree, MSE_decision_tree, y_predicted = Decision_Tree_Regression(data[:, 0:no_features].reshape(-1, 2),
-#                                                                             data[:, no_features].reshape(-1, 1),
-#                                                                             max_depth,
-#                                                                             n_estimators, 'plot', 'measure', 'occ')
+R2_decision_tree, MSE_decision_tree, y_predicted, y_test_dt = Decision_Tree_Regression(
+    data[:, 0:no_features].reshape(-1, no_features),
+    data[:, no_features].reshape(-1, 1),
+    max_depth,
+    n_estimators, 'plot', 'measure', 'occ')
 
-# X_trainS, X_testS, y_trainS, y_testS = train_test_split(data[:, 0:no_features], data[:, no_features], test_size=1 / 3,
-#                                                         random_state=42, shuffle=True)
+mean_error_DT = np.mean(np.abs(y_test_dt - y_predicted))
 
-# clf = SVR(C=100, kernel='poly', degree=6,  epsilon=0.1, verbose=True)
-# clf.fit(X_trainS.reshape(-1, 2), y_trainS.reshape(-1, 1))
-# prediction_SVM = clf.predict(X_testS.reshape(-1, 2))
-# R2_SVM = r2_score(y_testS, prediction_SVM)
-# MSE_SVM = math.sqrt(mean_squared_error(y_testS, prediction_SVM))
+X_trainS, X_testS, y_trainS, y_testS = train_test_split(data[:, 0:no_features], data[:, no_features], test_size=1 / 3,
+                                                        random_state=42, shuffle=True)
 
-# clfclass = SVC(C=100, kernel='sigmoid', degree=3, verbose=True)
-# clfclass.fit(X_trainS, y_trainS.astype('int'))
-# prediction_SVMclass = clfclass.predict(X_testS.reshape(-1, 2))
-# R2_SVMclass = r2_score(y_testS, prediction_SVM)
-# MSE_SVMclass = math.sqrt(mean_squared_error(y_testS, prediction_SVM))
+clf = SVR(C=0.01, kernel='poly', degree=1, epsilon=0.01, verbose=True)
+clf.fit(X_trainS.reshape(-1, no_features), y_trainS.reshape(-1, 1))
+prediction_SVM = clf.predict(X_testS.reshape(-1, no_features))
+R2_SVM = r2_score(y_testS, prediction_SVM)
+MSE_SVM = math.sqrt(mean_squared_error(y_testS, prediction_SVM))
+
+mean_error_SVM = np.mean(np.abs(y_testS - prediction_SVM))
 
 batches, labels = prepare_data(data, window_size)
 
@@ -199,7 +210,8 @@ number_of_nodes_CNN_LSTM = 64
 model_CNN_LSTM = CNN_LSTM(window_size, no_features, number_of_filters_CNN_LSTM, number_of_nodes_CNN_LSTM)
 training_history_CNN_LSTM = model_CNN_LSTM.fit(X_train, X_test, y_train, y_test, number_of_epochs)
 prediction_CNN_LSTM = model_CNN_LSTM.predict(X_test)
-MSE_CNN_LSTM, R2_CNN_LSTM, residuals_CNN_LSTM, accuracy_CNN_LSTM, mean_error_CNN_LSTM = model_CNN_LSTM.evaluate(prediction_CNN_LSTM, X_test, y_test)
+MSE_CNN_LSTM, R2_CNN_LSTM, residuals_CNN_LSTM, accuracy_CNN_LSTM, mean_error_CNN_LSTM = model_CNN_LSTM.evaluate(
+    prediction_CNN_LSTM, X_test, y_test)
 
 # Results_CNN_LSTM_list.append([MSE_CNN_LSTM, MSE_MLP, window_size, batch_size, number_of_nodes_CNN_LSTM, number_of_filters_CNN_LSTM])
 

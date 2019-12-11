@@ -265,7 +265,6 @@ class CNN_LSTM:
         self.model.add(layers.TimeDistributed(layers.MaxPooling1D(pool_size=2)))
         self.model.add(layers.TimeDistributed(layers.Flatten()))
         self.model.add(layers.LSTM(self.no_of_nodes_LSTM))
-        # self.model.add(layers.Flatten())
         self.model.add(layers.Dense(1, activation='relu'))
         # self.model.load_weights("weights/weights.best.CNN_LSTM.hdf5")
         self.model.compile(optimizer=self.optimizer, loss=self.loss)

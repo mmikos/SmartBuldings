@@ -59,4 +59,4 @@ def Decision_Tree_Regression(X, y, max_depth, n_estimators, plot, sensor_name: s
     # if plot == 'show':
     #     plot_decision_tree()
     #     plt.show()
-    return R2_decision_tree, MSE_decision_tree, y_predicted
+    return R2_decision_tree, MSE_decision_tree, y_predicted, y_test
