@@ -230,7 +230,7 @@ def generate_dataset_with_sensor_readings_and_satisfaction_scores(number_of_samp
         generated_data_with_scores[:, i] = generated_data_with_scores[:, i] - np.abs(signal_to_noise_ratio)
 
     # outisde bounds
-    generated_data_with_scores[:, 6:][np.where(generated_data_with_scores[:, 6:] > 1)] = np.random.uniform(0.95, 1)
+    generated_data_with_scores[:, 6:][np.where(generated_data_with_scores[:, 6:] < 0)] = np.random.uniform(0, 0.05)
     generated_data_with_scores[:, 6:][np.where(generated_data_with_scores[:, 6:] < 0)] = np.random.uniform(0, 0.05)
 
     satisfaction_vs_sensors = pd.DataFrame(generated_data_with_scores,

@@ -1,13 +1,20 @@
 import matplotlib.pylab as pylab
 import pandas as pd
+# from sklearn import metrics
 from sklearn import preprocessing
-from sklearn.metrics import mean_squared_error
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import mean_squared_error, confusion_matrix
 from sklearn.model_selection import train_test_split
 from sklearn.svm import SVR, SVC
 import math
+import seaborn as sns
+
+from Artificial_Neural_Network_Classification import ANN_classify
 from Artificial_Neural_Network_Regression import *
 from Decision_Tree_Regression import Decision_Tree_Regression
 from Get_Data_From_API import get_data_from_API
+from Sort import sort_for_plotting
 
 params = {'legend.fontsize': 'x-large',
           'figure.figsize': (12, 10),
@@ -21,55 +28,50 @@ import warnings
 warnings.filterwarnings('ignore')
 
 
-def plot_confusion_matrix(confusion_matrix,
-                          normalize=False,
-                          title=None,
-                          cmap=plt.cm.Blues):
-    """
-    This function prints and plots the confusion matrix.
-    Normalization can be applied by setting `normalize=True`.
-    """
-    if not title:
-        if normalize:
-            title = 'Normalized confusion matrix'
-        else:
-            title = 'Confusion matrix, without normalization'
+def fit_model(model, X_train, X_test, y_train, y_test):
+    features_number = X_train.shape[1]
 
-    # Only use the labels that appear in the data
-    classes = np.unique(y_train)
-    if normalize:
-        confusion_matrix = np.round(confusion_matrix.astype('float') / confusion_matrix.sum(axis=1)[:, np.newaxis], 2)
+    y_train = y_train.astype('int')
+    y_test = y_test.astype('int')
 
-    fig, ax = plt.subplots()
-    im = ax.imshow(confusion_matrix, interpolation='nearest', cmap=cmap)
-    ax.figure.colorbar(im, ax=ax)
-    # We want to show all ticks...
-    ax.set(xticks=np.arange(confusion_matrix.shape[1]),
-           yticks=np.arange(confusion_matrix.shape[0]),
-           # ... and label them with the respective list entries
-           xticklabels=classes, yticklabels=classes,
-           title=title,
-           ylabel='True label',
-           xlabel='Predicted label')
+    model.fit(X_train.reshape(-1, features_number), y_train.reshape(-1, 1))
+    prediction = model.predict(X_test.reshape(-1, features_number))
+    accuracy = model.score(X_test, y_test)
+    MSE = math.sqrt(mean_squared_error(y_test, prediction))
+    mean_error = np.mean(np.abs(y_test - prediction))
 
-    # Rotate the tick labels and set their alignment.
-    plt.setp(ax.get_xticklabels(), rotation=45, ha="right",
-             rotation_mode="anchor")
+    confusion_matrix_calculated = confusion_matrix(y_test, prediction)
 
-    # Loop over data dimensions and create text annotations.
-    thresh = confusion_matrix.max() / 2.
-    for i in range(confusion_matrix.shape[0]):
-        for j in range(confusion_matrix.shape[1]):
-            ax.text(j, i, format(confusion_matrix[i, j]),
-                    ha="center", va="center",
-                    color="white" if confusion_matrix[i, j] > thresh else "black")
-    fig.tight_layout()
-    return ax
+    return prediction, accuracy, MSE, mean_error, confusion_matrix_calculated
+
+
+def plot_confusion_matrix(confusion_matrix_calculated,
+                          accuracy,
+                          model_name):
+    matrix_percentage = confusion_matrix_calculated.astype(dtype=np.float32)
+
+    rows = confusion_matrix_calculated.shape[0]
+    columns = confusion_matrix_calculated.shape[1]
+
+    for column in range(columns):
+        for row in range(rows):
+            matrix_percentage[row, column] = matrix_percentage[row, column] / \
+                                             np.sum(confusion_matrix_calculated, axis=1)[row]
+
+    plt.figure(figsize=(9, 9))
+    sns.heatmap(matrix_percentage, annot=True, fmt=".3f", linewidths=.5, square=True, cmap='Blues_r')
+    plt.ylabel('Actual label')
+    plt.xlabel('Predicted label')
+    all_sample_title = f'Accuracy Score for {model_name}: {np.round(accuracy, 4)*100} %'
+    plt.title(all_sample_title, size=15)
+    plt.show()
 
 
 def filter_measurements_data(measure, name, business_hours, weekends):
     if business_hours:
-        measure = measure.between_time('9:00', '17:00')
+        if name == 'co2':
+            measure = measure.shift(0)
+        measure = measure.between_time('9:00', '18:00')
 
     if weekends:
         measure = measure[measure.index.dayofweek < 5]
@@ -80,10 +82,12 @@ def filter_measurements_data(measure, name, business_hours, weekends):
 
 
 def create_dataset(occupancy_data, *args):
+    data_set = pd.DataFrame()
+    measurements = occupancy_data
 
-    measurements = args[0].join([args[1], args[2], args[3]], how='left')
-
-    data_set = measurements.join(occupancy_data, how='inner')
+    for ar in args:
+        data_set = measurements.join(ar, how='inner')
+        measurements = data_set
 
     return data_set
 
@@ -93,45 +97,103 @@ def prepare_data(data_set, size_window):
     labels_list = []
     features_number = data_set.shape[1] - 1
     for idx in range(len(data_set) - size_window - 1):
-        batches_list.append(data_set[idx: idx + size_window, 0:features_number])
-        labels_list.append(data_set[idx + size_window, features_number])
+        batches_list.append(data_set[idx: idx + size_window, 1:features_number + 1])
+        labels_list.append(data_set[idx + size_window, 0])
     return np.array(batches_list), np.array(labels_list)
 
 
-start_date = "2019-11-18 09:00"
-end_date = "2019-12-11 09:00"
+start_date = "2019-11-18 07:00"
+end_date = "2019-12-08 07:00"
 freq = 5
-sampling_rate = '30T'
+sampling_rate = '15T'
 devices_list = pd.DataFrame([['OLY-A-413', 'OLY-A-414', 'OLY-A-415', 'OLY-A-416', 'OLY-A-417'],
                              ['9033', '9049', '8989', '7675', '7663'],
-                             ['ROOM 1', 'ROOM 2', 'ROOM 3', 'ROOM 4', 'ROOM 5']])
+                             ['ROOM 1', 'ROOM 2', 'ROOM 3', 'ROOM 4', 'ROOM 5'],
+                             ['Room 4.1', 'Room 4.2', 'Room 4.3', 'Room 4.4', 'Room 4.5']])
 # devices_list = pd.DataFrame([['OLY-A-413'],
 #                              ['9033'],
-#                              ['ROOM 1']])
+#                              ['ROOM 1'],
+#                              ['Room 4.1']])
 # devices_list = pd.DataFrame([['OLY-A-414'],
 #                              ['9049'],
-#                              ['ROOM 2']])
+#                              ['ROOM 2'],
+#                              ['Room 4.2']])
 # devices_list = pd.DataFrame([['OLY-A-415'],
 #                              ['8989'],
-#                              ['ROOM 3']])
+#                              ['ROOM 3'],
+#                              ['Room 4.3']])
 # devices_list = pd.DataFrame([['OLY-A-416'],
 #                              ['7675'],
-#                              ['ROOM 4']])
+#                              ['ROOM 4'],
+#                              ['Room 4.4']])
 # devices_list = pd.DataFrame([['OLY-A-417'],
 #                              ['7663'],
-#                              ['ROOM 5']])
+#                              ['ROOM 5'],
+#                              ['Room 4.5']])
 
 load = get_data_from_API(start_date, end_date, freq, devices_list, sampling_rate)
 
-occupancy = load.get_avuity_data()
-co2, noise, humidity, temperature  = load.get_awair_data()
+occupancy_binary = pd.read_csv('data_sets/binary_occupancy_Nov.csv')
+occupancy_binary2 = pd.read_csv('data_sets/binary_occupancy_Dec.csv')
 
-co2 = filter_measurements_data(co2, 'co2', business_hours=True, weekends=True)
-noise = filter_measurements_data(noise, 'noise', business_hours=True, weekends=True)
-humidity = filter_measurements_data(humidity, 'humidity', business_hours=True, weekends=True)
-temperature = filter_measurements_data(temperature, 'temperature', business_hours=True, weekends=True)
+occupancy_binary = occupancy_binary.append(occupancy_binary2)
 
-data = create_dataset(occupancy, co2, noise, humidity, temperature)
+occupancy_selected_DF = pd.DataFrame(columns=['Value'])
+
+for room in devices_list.iloc[3, :]:
+
+    occupancy_selected = occupancy_binary.loc[occupancy_binary['SpaceName'] == f'{room}', ['Datetime', 'Value']]
+    date_occupancy_selected = occupancy_selected.set_index('Datetime')
+    date_occupancy_selected.index = pd.to_datetime(date_occupancy_selected.index, utc=True)
+    date_occupancy_agg = date_occupancy_selected.resample(sampling_rate).min().ffill().astype(int)
+    occupancy_selected_DF = occupancy_selected_DF.append(date_occupancy_agg.reset_index(), ignore_index=False)
+
+occupancy_selected = occupancy_selected_DF.sort_values(by='Datetime')
+occupancy = occupancy_selected.set_index('Datetime')
+
+occupancy = occupancy.rename(columns={'Value': 'occupancy'})
+
+# co2[(co2.index > '2019-12-10T09:00:00.000000000') & (co2.index < '2019-12-09T09:00:00.000000000')]
+
+# occupancy = load.get_avuity_data()
+co2, noise, humidity, temperature = load.get_awair_data()
+
+business_hours = True
+weekends = True
+
+co2 = filter_measurements_data(co2, 'co2', business_hours, weekends)
+noise = filter_measurements_data(noise, 'noise', business_hours, weekends)
+humidity = filter_measurements_data(humidity, 'humidity', business_hours, weekends)
+temperature = filter_measurements_data(temperature, 'temperature', business_hours, weekends)
+
+data = create_dataset(occupancy, co2, noise, humidity)
+
+# data2 = data[(data.index < '2019-12-08T00:00:00.000000000') & (data.index >'2019-12-10T00:00:00.000000000')]
+
+# fig, ax1 = plt.subplots()
+# color = 'tab:red'
+# ax1.set_xlabel('Time')
+# ax1.set_ylabel('Occupancy', color=color)
+#
+# ax1.plot(data['occupancy'], color=color)
+# ax1.tick_params(axis='y', labelcolor=color)
+#
+# ax2 = ax1.twinx()
+# color = 'tab:blue'
+# ax2.set_ylabel('CO_2', color=color)
+#
+# ax2.plot(data['co2'], color=color)
+# ax2.tick_params(axis='y', labelcolor=color)
+# #
+# # ax2.set_ylabel('Noise', color=color)
+# #
+# # ax2.plot(data['noise'], color=color)
+# # ax2.tick_params(axis='y', labelcolor=color)
+#
+# fig.tight_layout()
+# plt.title(f'Occupancy vs CO_2')
+# # plt.legend()
+# plt.show()
 
 max_depth = 6
 n_estimators = 150
@@ -139,7 +201,9 @@ n_estimators = 150
 scaler = preprocessing.StandardScaler()
 data = data.to_numpy()
 no_features = data.shape[1] - 1
-data[:, 0:no_features] = scaler.fit_transform(data[:, 0:no_features])
+data[:, 1:no_features + 1] = scaler.fit_transform(data[:, 1:no_features + 1])
+
+data[:, 0][np.where(data[:, 0] > 0)] = 1
 
 Results_MLP_list = []
 Results_LSTM_list = []
@@ -147,39 +211,51 @@ Results_CNN_list = []
 Results_CNN_LSTM_list = []
 
 number_of_epochs = 1000
-window_size = 64
+window_size = 32
 batch_size = 64
 
-# binary vs discrete
-
-
-# for window_size in window_size_list:
-#     for batch_size in batch_size_list:
-#         for number_of_nodes in number_of_nodes_MLP_list:
-
-
 R2_decision_tree, MSE_decision_tree, y_predicted, y_test_dt = Decision_Tree_Regression(
-    data[:, 0:no_features].reshape(-1, no_features),
-    data[:, no_features].reshape(-1, 1),
+    data[:, 1:no_features + 1].reshape(-1, no_features),
+    data[:, 0].reshape(-1, 1),
     max_depth,
     n_estimators, 'plot', 'measure', 'occ')
 
 mean_error_DT = np.mean(np.abs(y_test_dt - y_predicted))
 
-X_trainS, X_testS, y_trainS, y_testS = train_test_split(data[:, 0:no_features], data[:, no_features], test_size=1 / 3,
-                                                        random_state=42, shuffle=True)
+X_train_class, X_test_class, y_train_class, y_test_class = train_test_split(data[:, 1:no_features + 1], data[:, 0],
+                                                                            test_size=1 / 3, random_state=42,
+                                                                            shuffle=True)
 
-clf = SVR(C=0.01, kernel='poly', degree=1, epsilon=0.01, verbose=True)
-clf.fit(X_trainS.reshape(-1, no_features), y_trainS.reshape(-1, 1))
-prediction_SVM = clf.predict(X_testS.reshape(-1, no_features))
-R2_SVM = r2_score(y_testS, prediction_SVM)
-MSE_SVM = math.sqrt(mean_squared_error(y_testS, prediction_SVM))
+model_Random_Forest = RandomForestClassifier(n_estimators=500, max_depth=8, random_state=0, class_weight='balanced')
+# model_Random_Forest = RandomForestClassifier(n_estimators=150, max_depth=13, random_state=0, class_weight='balanced')
+prediction_Random_Forest, accuracy_Random_Forest, MSE_Random_Forest, mean_error_Random_Forest, cm_Random_Forest =\
+    fit_model(model_Random_Forest, X_train_class, X_test_class, y_train_class, y_test_class)
 
-mean_error_SVM = np.mean(np.abs(y_testS - prediction_SVM))
+plot_confusion_matrix(cm_Random_Forest, accuracy_Random_Forest, 'Random Forest')
+
+model_SVC = SVC(C=200, kernel='rbf', class_weight='balanced', gamma='auto')
+# model_SVC = SVC(C=15, kernel='rbf', class_weight='balanced', gamma='auto')
+prediction_SVC, accuracy_SVC, MSE_SVC, mean_error_SVC, cm_SVC =\
+    fit_model(model_SVC, X_train_class, X_test_class, y_train_class, y_test_class)
+
+plot_confusion_matrix(cm_SVC, accuracy_SVC, 'SVC')
+
+log_regres = LogisticRegression(C=100, random_state=0, class_weight='balanced')
+
+prediction_log_regres, accuracy_log_regres, MSE_log_regres, mean_error_log_regres, cm_log_regres =\
+    fit_model(log_regres, X_train_class, X_test_class, y_train_class, y_test_class)
+
+plot_confusion_matrix(cm_log_regres, accuracy_log_regres, 'Logistic Regression')
+
 
 batches, labels = prepare_data(data, window_size)
 
 X_train, X_test, y_train, y_test = train_test_split(batches, labels, test_size=1 / 3, random_state=42)
+
+accuracy_ANN, prediction_ANN, cm_ANN = ANN_classify(X_train, X_test, y_train, y_test, 100, number_of_epochs,
+                                                    window_size)
+
+plot_confusion_matrix(cm_ANN, accuracy_ANN[1], 'Neural Network')
 
 number_of_nodes_MLP = 64
 model_MLP = MLP(window_size, no_features, number_of_nodes_MLP)
@@ -231,7 +307,7 @@ plt.legend(['Train', 'Test'], loc='upper left')
 
 plt.figure(figsize=(12, 10))
 plt.plot(y_test, label='Real values', color='green')
-plt.plot(np.round(prediction_LSTM, 0), label='Predicted values', color='red')
+plt.plot(prediction_LSTM, label='Predicted values', color='red')
 plt.title('Real vs predicted using LSTM')
 plt.legend()
 
