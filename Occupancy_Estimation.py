@@ -1,20 +1,20 @@
+import math
 import matplotlib.pylab as pylab
 import pandas as pd
-# from sklearn import metrics
+import seaborn as sns
 from sklearn import preprocessing
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import mean_squared_error, confusion_matrix
+from sklearn.metrics import mean_squared_error, confusion_matrix, classification_report
 from sklearn.model_selection import train_test_split
-from sklearn.svm import SVR, SVC
-import math
-import seaborn as sns
-
+from sklearn.svm import SVC
 from Artificial_Neural_Network_Classification import ANN_classify
 from Artificial_Neural_Network_Regression import *
 from Decision_Tree_Regression import Decision_Tree_Regression
 from Get_Data_From_API import get_data_from_API
-from Sort import sort_for_plotting
+from sklearn.metrics import roc_curve
+from sklearn.metrics import roc_auc_score
+from matplotlib import pyplot
 
 params = {'legend.fontsize': 'x-large',
           'figure.figsize': (12, 10),
@@ -62,7 +62,7 @@ def plot_confusion_matrix(confusion_matrix_calculated,
     sns.heatmap(matrix_percentage, annot=True, fmt=".3f", linewidths=.5, square=True, cmap='Blues_r')
     plt.ylabel('Actual label')
     plt.xlabel('Predicted label')
-    all_sample_title = f'Accuracy Score for {model_name}: {np.round(accuracy, 4)*100} %'
+    all_sample_title = f'Accuracy Score for {model_name}: {np.round(accuracy, 4) * 100} %'
     plt.title(all_sample_title, size=15)
     plt.show()
 
@@ -71,7 +71,7 @@ def filter_measurements_data(measure, name, business_hours, weekends):
     if business_hours:
         if name == 'co2':
             measure = measure.shift(0)
-        measure = measure.between_time('9:00', '18:00')
+        measure = measure.between_time('8:00', '18:00')
 
     if weekends:
         measure = measure[measure.index.dayofweek < 5]
@@ -102,60 +102,99 @@ def prepare_data(data_set, size_window):
     return np.array(batches_list), np.array(labels_list)
 
 
-start_date = "2019-11-18 07:00"
-end_date = "2019-12-08 07:00"
+def resample_occupancy(occupancy_binary, sampling_rate, devices_list):
+    occupancy_selected_DF = pd.DataFrame(columns=['Value'])
+
+    for room in devices_list.iloc[3, :]:
+        occupancy_selected = occupancy_binary.loc[occupancy_binary['SpaceName'] == f'{room}', ['Datetime', 'Value']]
+        date_occupancy_selected = occupancy_selected.set_index('Datetime')
+        date_occupancy_selected.index = pd.to_datetime(date_occupancy_selected.index, utc=True)
+        date_occupancy_agg = date_occupancy_selected.resample(sampling_rate).min().ffill().astype(int)
+        occupancy_selected_DF = occupancy_selected_DF.append(date_occupancy_agg.reset_index(), ignore_index=False)
+
+    occupancy_selected = occupancy_selected_DF.sort_values(by='Datetime')
+    occupancy = occupancy_selected.set_index('Datetime')
+
+    occupancy = occupancy.rename(columns={'Value': 'occupancy'})
+
+    occupancy = occupancy.where(occupancy == 0, 1)
+
+    return occupancy
+
+
+def plot_ROC_curve(X_test, y_test, model, model_name: str):
+    y_test = y_test.astype('int')
+
+    # generate a no skill prediction (majority class)
+    random_class_probability = [0 for _ in range(len(y_test))]
+
+    predicted_class_probability = model.predict_proba(X_test)
+    # keep probabilities for the positive outcome only
+    predicted_class_probability = predicted_class_probability[:, 1]
+
+    random_class_auc = roc_auc_score(y_test, random_class_probability)
+    predicted_class_auc = roc_auc_score(y_test, predicted_class_probability)
+
+    # summarize scores
+    print('No Skill: ROC AUC=%.3f' % (random_class_auc))
+    print('Logistic: ROC AUC=%.3f' % (predicted_class_auc))
+
+    # calculate roc curves
+    random_class_fpr, random_class_tpr, _ = roc_curve(y_test, random_class_probability)
+    predicted_class_fpr, predicted_class_tpr, _ = roc_curve(y_test, predicted_class_probability)
+    # plot the roc curve for the model
+    pyplot.plot(random_class_fpr, random_class_tpr, linestyle='--', label='Random')
+    pyplot.plot(predicted_class_fpr, predicted_class_tpr, marker='.', label='Predicted')
+    # axis labels
+    pyplot.xlabel('False Positive Rate')
+    pyplot.ylabel('True Positive Rate')
+    plt.title(f'ROC curve for {model_name}', size=15)
+    pyplot.legend()
+    pyplot.show()
+
+
+start_date = "2019-11-18 08:00"
+end_date = "2019-12-18 08:00"
 freq = 5
 sampling_rate = '15T'
-devices_list = pd.DataFrame([['OLY-A-413', 'OLY-A-414', 'OLY-A-415', 'OLY-A-416', 'OLY-A-417'],
-                             ['9033', '9049', '8989', '7675', '7663'],
-                             ['ROOM 1', 'ROOM 2', 'ROOM 3', 'ROOM 4', 'ROOM 5'],
-                             ['Room 4.1', 'Room 4.2', 'Room 4.3', 'Room 4.4', 'Room 4.5']])
-# devices_list = pd.DataFrame([['OLY-A-413'],
-#                              ['9033'],
-#                              ['ROOM 1'],
-#                              ['Room 4.1']])
-# devices_list = pd.DataFrame([['OLY-A-414'],
-#                              ['9049'],
-#                              ['ROOM 2'],
-#                              ['Room 4.2']])
-# devices_list = pd.DataFrame([['OLY-A-415'],
-#                              ['8989'],
-#                              ['ROOM 3'],
-#                              ['Room 4.3']])
-# devices_list = pd.DataFrame([['OLY-A-416'],
-#                              ['7675'],
-#                              ['ROOM 4'],
-#                              ['Room 4.4']])
-# devices_list = pd.DataFrame([['OLY-A-417'],
-#                              ['7663'],
-#                              ['ROOM 5'],
-#                              ['Room 4.5']])
+devices_list_full = pd.DataFrame([['OLY-A-413', 'OLY-A-414', 'OLY-A-415', 'OLY-A-416', 'OLY-A-417'],
+                                  ['9033', '9049', '8989', '7675', '7663'],
+                                  ['ROOM 1', 'ROOM 2', 'ROOM 3', 'ROOM 4', 'ROOM 5'],
+                                  ['Room 4.1', 'Room 4.2', 'Room 4.3', 'Room 4.4', 'Room 4.5']])
+devices_list_room_1 = pd.DataFrame([['OLY-A-413'],
+                                    ['9033'],
+                                    ['ROOM 1'],
+                                    ['Room 4.1']])
+devices_list_room_2 = pd.DataFrame([['OLY-A-414'],
+                                    ['9049'],
+                                    ['ROOM 2'],
+                                    ['Room 4.2']])
+devices_list_room_3 = pd.DataFrame([['OLY-A-415'],
+                                    ['8989'],
+                                    ['ROOM 3'],
+                                    ['Room 4.3']])
+devices_list_room_4 = pd.DataFrame([['OLY-A-416'],
+                                    ['7675'],
+                                    ['ROOM 4'],
+                                    ['Room 4.4']])
+devices_list_room_5 = pd.DataFrame([['OLY-A-417'],
+                                    ['7663'],
+                                    ['ROOM 5'],
+                                    ['Room 4.5']])
+
+devices_list = devices_list_room_4
+
+occupancy_binary_part1 = pd.read_csv('data_sets/binary_occupancy_Nov.csv')
+occupancy_binary_part2 = pd.read_csv('data_sets/binary_occupancy_Dec1.csv')
+occupancy_binary_part3 = pd.read_csv('data_sets/binary_occupancy_Dec2.csv')
+
+occupancy_binary = occupancy_binary_part1.append([occupancy_binary_part2, occupancy_binary_part3])
+occupancy = resample_occupancy(occupancy_binary, sampling_rate, devices_list)
 
 load = get_data_from_API(start_date, end_date, freq, devices_list, sampling_rate)
 
-occupancy_binary = pd.read_csv('data_sets/binary_occupancy_Nov.csv')
-occupancy_binary2 = pd.read_csv('data_sets/binary_occupancy_Dec.csv')
-
-occupancy_binary = occupancy_binary.append(occupancy_binary2)
-
-occupancy_selected_DF = pd.DataFrame(columns=['Value'])
-
-for room in devices_list.iloc[3, :]:
-
-    occupancy_selected = occupancy_binary.loc[occupancy_binary['SpaceName'] == f'{room}', ['Datetime', 'Value']]
-    date_occupancy_selected = occupancy_selected.set_index('Datetime')
-    date_occupancy_selected.index = pd.to_datetime(date_occupancy_selected.index, utc=True)
-    date_occupancy_agg = date_occupancy_selected.resample(sampling_rate).min().ffill().astype(int)
-    occupancy_selected_DF = occupancy_selected_DF.append(date_occupancy_agg.reset_index(), ignore_index=False)
-
-occupancy_selected = occupancy_selected_DF.sort_values(by='Datetime')
-occupancy = occupancy_selected.set_index('Datetime')
-
-occupancy = occupancy.rename(columns={'Value': 'occupancy'})
-
-# co2[(co2.index > '2019-12-10T09:00:00.000000000') & (co2.index < '2019-12-09T09:00:00.000000000')]
-
 # occupancy = load.get_avuity_data()
+
 co2, noise, humidity, temperature = load.get_awair_data()
 
 business_hours = True
@@ -168,42 +207,43 @@ temperature = filter_measurements_data(temperature, 'temperature', business_hour
 
 data = create_dataset(occupancy, co2, noise, humidity)
 
-# data2 = data[(data.index < '2019-12-08T00:00:00.000000000') & (data.index >'2019-12-10T00:00:00.000000000')]
+plt.hist(data['occupancy'], 2, histtype='bar')
+plt.show()
 
-# fig, ax1 = plt.subplots()
-# color = 'tab:red'
-# ax1.set_xlabel('Time')
-# ax1.set_ylabel('Occupancy', color=color)
+data_cut = (data.loc[(data.index.day == 25) & (data.index.month == 11)]).append(data.loc[(data.index.day == 26) &
+                                                                                         (data.index.month == 11)])
+
+
+
+fig, ax1 = plt.subplots()
+color = 'tab:red'
+ax1.set_xlabel('Time')
+ax1.set_ylabel('Occupancy', color=color)
+
+ax1.plot(data_cut['occupancy'], color=color)
+ax1.tick_params(axis='y', labelcolor=color)
+
+ax2 = ax1.twinx()
+color = 'tab:blue'
+ax2.set_ylabel('CO_2', color=color)
+
+ax2.plot(data_cut['co2'], color=color)
+ax2.tick_params(axis='y', labelcolor=color)
 #
-# ax1.plot(data['occupancy'], color=color)
-# ax1.tick_params(axis='y', labelcolor=color)
+# ax2.set_ylabel('Noise', color=color)
 #
-# ax2 = ax1.twinx()
-# color = 'tab:blue'
-# ax2.set_ylabel('CO_2', color=color)
-#
-# ax2.plot(data['co2'], color=color)
+# ax2.plot(data_cut['noise'], color=color)
 # ax2.tick_params(axis='y', labelcolor=color)
-# #
-# # ax2.set_ylabel('Noise', color=color)
-# #
-# # ax2.plot(data['noise'], color=color)
-# # ax2.tick_params(axis='y', labelcolor=color)
-#
-# fig.tight_layout()
-# plt.title(f'Occupancy vs CO_2')
-# # plt.legend()
-# plt.show()
 
-max_depth = 6
-n_estimators = 150
+fig.tight_layout()
+plt.title(f'Occupancy vs CO_2')
 
 scaler = preprocessing.StandardScaler()
 data = data.to_numpy()
 no_features = data.shape[1] - 1
 data[:, 1:no_features + 1] = scaler.fit_transform(data[:, 1:no_features + 1])
 
-data[:, 0][np.where(data[:, 0] > 0)] = 1
+# data[:, 0][np.where(data[:, 0] > 0)] = 1
 
 Results_MLP_list = []
 Results_LSTM_list = []
@@ -213,6 +253,9 @@ Results_CNN_LSTM_list = []
 number_of_epochs = 1000
 window_size = 32
 batch_size = 64
+
+max_depth = 6
+n_estimators = 150
 
 R2_decision_tree, MSE_decision_tree, y_predicted, y_test_dt = Decision_Tree_Regression(
     data[:, 1:no_features + 1].reshape(-1, no_features),
@@ -227,35 +270,55 @@ X_train_class, X_test_class, y_train_class, y_test_class = train_test_split(data
                                                                             shuffle=True)
 
 model_Random_Forest = RandomForestClassifier(n_estimators=500, max_depth=8, random_state=0, class_weight='balanced')
-# model_Random_Forest = RandomForestClassifier(n_estimators=150, max_depth=13, random_state=0, class_weight='balanced')
-prediction_Random_Forest, accuracy_Random_Forest, MSE_Random_Forest, mean_error_Random_Forest, cm_Random_Forest =\
+# model_Random_Forest = RandomForestClassifier(n_estimators=100, max_depth=None, random_state=0, class_weight='balanced')
+prediction_Random_Forest, accuracy_Random_Forest, MSE_Random_Forest, mean_error_Random_Forest, cm_Random_Forest = \
     fit_model(model_Random_Forest, X_train_class, X_test_class, y_train_class, y_test_class)
 
 plot_confusion_matrix(cm_Random_Forest, accuracy_Random_Forest, 'Random Forest')
+plot_ROC_curve(X_test_class, y_test_class, model_Random_Forest, 'Random Forest')
 
-model_SVC = SVC(C=200, kernel='rbf', class_weight='balanced', gamma='auto')
-# model_SVC = SVC(C=15, kernel='rbf', class_weight='balanced', gamma='auto')
-prediction_SVC, accuracy_SVC, MSE_SVC, mean_error_SVC, cm_SVC =\
+model_SVC = SVC(C=200, kernel='rbf', class_weight='balanced', gamma='auto', probability=True)
+# model_SVC = SVC(C=100, kernel='rbf', class_weight='balanced', gamma='auto')
+prediction_SVC, accuracy_SVC, MSE_SVC, mean_error_SVC, cm_SVC = \
     fit_model(model_SVC, X_train_class, X_test_class, y_train_class, y_test_class)
 
 plot_confusion_matrix(cm_SVC, accuracy_SVC, 'SVC')
+plot_ROC_curve(X_test_class, y_test_class, model_SVC, 'SVC')
 
 log_regres = LogisticRegression(C=100, random_state=0, class_weight='balanced')
 
-prediction_log_regres, accuracy_log_regres, MSE_log_regres, mean_error_log_regres, cm_log_regres =\
+prediction_log_regres, accuracy_log_regres, MSE_log_regres, mean_error_log_regres, cm_log_regres = \
     fit_model(log_regres, X_train_class, X_test_class, y_train_class, y_test_class)
 
 plot_confusion_matrix(cm_log_regres, accuracy_log_regres, 'Logistic Regression')
-
+plot_ROC_curve(X_test_class, y_test_class, log_regres, 'Logistic Regression')
 
 batches, labels = prepare_data(data, window_size)
 
 X_train, X_test, y_train, y_test = train_test_split(batches, labels, test_size=1 / 3, random_state=42)
 
-accuracy_ANN, prediction_ANN, cm_ANN = ANN_classify(X_train, X_test, y_train, y_test, 100, number_of_epochs,
-                                                    window_size)
+metrics = [
+    keras.metrics.TruePositives(name='tp'),
+    keras.metrics.FalsePositives(name='fp'),
+    keras.metrics.TrueNegatives(name='tn'),
+    keras.metrics.FalseNegatives(name='fn'),
+    keras.metrics.BinaryAccuracy(name='accuracy'),
+    keras.metrics.Precision(name='precision'),
+    keras.metrics.Recall(name='recall'),
+    keras.metrics.AUC(name='auc')
+]
 
-plot_confusion_matrix(cm_ANN, accuracy_ANN[1], 'Neural Network')
+regularization_penalty = 0.000001
+
+accuracy_ANN, prediction_ANN, cm_ANN, model_ANN = ANN_classify(X_train, X_test, y_train, y_test, 100, number_of_epochs,
+                                                    window_size, metrics, regularization_penalty)
+
+metrics_results = pd.DataFrame([accuracy_ANN], columns=['loss', 'TP', 'FP', 'TN', 'FN', 'accuracy', 'precision',
+                                                        'recall', 'AUC'])
+
+plot_confusion_matrix(cm_ANN, metrics_results.iloc[0, 6], 'Neural Network')
+ANN_summary = classification_report(y_test, prediction_ANN)
+plot_ROC_curve(X_test, y_test, model_ANN, 'Neural Network')
 
 number_of_nodes_MLP = 64
 model_MLP = MLP(window_size, no_features, number_of_nodes_MLP)
