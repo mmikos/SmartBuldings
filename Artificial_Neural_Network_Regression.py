@@ -14,6 +14,7 @@ from tensorflow import keras
 
 warnings.filterwarnings('ignore')
 
+np.random.seed(12)
 
 def coeff_determination(y_true, y_pred):
 
@@ -28,7 +29,6 @@ def coeff_determination(y_true, y_pred):
 def root_mean_squared_error(y_true, y_pred):
     rmse = K.sqrt(K.mean(K.square(y_pred - y_true)))
     return rmse
-# metrics.Precision()
 
 
 class MLP:
@@ -39,7 +39,7 @@ class MLP:
         opt = SGD(learning_rate=0.001, momentum=0.9, decay=1e-6, nesterov=True)
         self.optimizer = opt
         self.number_of_nodes = number_of_nodes
-        self.patience = 200
+        self.patience = 20
         self.batch_size = 128
         self.loss = root_mean_squared_error
         self.model = Sequential()
@@ -84,35 +84,19 @@ class MLP:
 
         return MSE, R2, residuals, exact_accuracy, mean_error
 
-    def plot_results(self, y_test, residuals, prediction):
-        plt.figure(figsize=(12, 10))
-        # Plot original data
-        plt.scatter(prediction, residuals, color='red')
-        plt.xlabel('predicted value')
-        plt.ylabel('residual')
-        plt.title('Results of MLP Network - Residuals')
-
-        plt.figure(figsize=(12, 10))
-        # Plot original data
-        plt.scatter(prediction, y_test, color='blue')
-        plt.xlabel('predicted value')
-        plt.ylabel('real value')
-        plt.title('Results of MLP Network - Real vs Predicted')
-        plt.show()
-
 
 class LSTM:
 
     def __init__(self, window_size, no_of_features, number_of_nodes):
         self.window_size = window_size
         self.no_of_features = no_of_features
-        opt = SGD(learning_rate=0.1, momentum=0.9, decay=1e-6, nesterov=True)
+        opt = SGD(learning_rate=0.001, momentum=0.9, decay=1e-6, nesterov=True)
         self.optimizer = opt
         self.loss = root_mean_squared_error
         self.number_of_nodes = number_of_nodes
         self.regularization_penalty = 0.
-        self.patience = 200
-        self.batch_size = 128
+        self.patience = 20
+        self.batch_size = 64
         self.model = Sequential()
         self.model.add(layers.LSTM(self.number_of_nodes, input_shape=(self.window_size, self.no_of_features)))
         self.model.add(layers.Dense(1, activation='relu', kernel_regularizer=regularizers.l2(self.regularization_penalty)))
@@ -154,22 +138,6 @@ class LSTM:
 
         return MSE, R2, residuals, exact_accuracy, mean_error
 
-    def plot_results(self, y_test, residuals, prediction):
-        plt.figure(figsize=(12, 10))
-        # Plot original data
-        plt.scatter(prediction, residuals, color='red')
-        plt.xlabel('predicted value')
-        plt.ylabel('residual')
-        plt.title('Results of LSTM Network - Residuals')
-
-        plt.figure(figsize=(12, 10))
-        # Plot original data
-        plt.scatter(prediction, y_test, color='blue')
-        plt.xlabel('predicted value')
-        plt.ylabel('real value')
-        plt.title('Results of LSTM Network - Real vs Predicted')
-        plt.show()
-
 
 class CNN:
 
@@ -181,7 +149,7 @@ class CNN:
         self.optimizer = opt
         self.loss = root_mean_squared_error
         self.regularization_penalty = 0.
-        self.patience = 200
+        self.patience = 20
         self.batch_size = 128
         self.model = Sequential()
         self.model.add(layers.Conv1D(filters=number_of_filters, kernel_size=2, activation='relu',
@@ -227,22 +195,6 @@ class CNN:
 
         return MSE, R2, residuals, exact_accuracy, mean_error
 
-    def plot_results(self, y_test, residuals, prediction):
-        plt.figure(figsize=(12, 10))
-        # Plot original data
-        plt.scatter(prediction, residuals, color='red')
-        plt.xlabel('predicted value')
-        plt.ylabel('residual')
-        plt.title('Results of CNN Network - Residuals')
-
-        plt.figure(figsize=(12, 10))
-        # Plot original data
-        plt.scatter(prediction, y_test, color='blue')
-        plt.xlabel('predicted value')
-        plt.ylabel('real value')
-        plt.title('Results of CNN Network - Real vs Predicted')
-        plt.show()
-
 
 class CNN_LSTM:
 
@@ -255,7 +207,7 @@ class CNN_LSTM:
         self.number_of_filters_CNN = number_of_filters_CNN
         self.no_of_nodes_LSTM = no_of_nodes_LSTM
         self.regularization_penalty = 0.
-        self.patience = 200
+        self.patience = 20
         self.batch_size = 64
         self.training_history = None
         self.model = Sequential()
@@ -306,19 +258,3 @@ class CNN_LSTM:
         mean_error = np.mean(residuals)
 
         return MSE, R2, residuals, exact_accuracy, mean_error
-
-    def plot_results(self, y_test, residuals, prediction):
-        plt.figure(figsize=(12, 10))
-        # Plot original data
-        plt.scatter(prediction, residuals, color='red')
-        plt.xlabel('predicted value')
-        plt.ylabel('residual')
-        plt.title('Results of CNN_LSTM Network - Residuals')
-
-        plt.figure(figsize=(12, 10))
-        # Plot original data
-        plt.scatter(prediction, y_test, color='blue')
-        plt.xlabel('predicted value')
-        plt.ylabel('real value')
-        plt.title('Results of CNN_LSTM Network - Real vs Predicted')
-        plt.show()

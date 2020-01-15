@@ -27,6 +27,8 @@ import warnings
 
 warnings.filterwarnings('ignore')
 
+np.random.seed(12)
+
 
 def fit_model(model, X_train, X_test, y_train, y_test):
     features_number = X_train.shape[1]
@@ -68,10 +70,11 @@ def plot_confusion_matrix(confusion_matrix_calculated,
 
 
 def filter_measurements_data(measure, name, business_hours, weekends):
+    if name == 'co2':
+        measure = measure.shift(3)
+        measure = measure.fillna(method='bfill')
     if business_hours:
-        if name == 'co2':
-            measure = measure.shift(0)
-        measure = measure.between_time('8:00', '18:00')
+        measure = measure.between_time('8:00', '19:00')
 
     if weekends:
         measure = measure[measure.index.dayofweek < 5]
@@ -103,10 +106,10 @@ def prepare_data(data_set, size_window):
 
 
 def resample_occupancy(occupancy_binary, sampling_rate, devices_list):
-    occupancy_selected_DF = pd.DataFrame(columns=['Value'])
+    occupancy_selected_DF = pd.DataFrame(columns=['value'])
 
     for room in devices_list.iloc[3, :]:
-        occupancy_selected = occupancy_binary.loc[occupancy_binary['SpaceName'] == f'{room}', ['Datetime', 'Value']]
+        occupancy_selected = occupancy_binary.loc[occupancy_binary['SpaceName'] == f'{room}', ['Datetime', 'value']]
         date_occupancy_selected = occupancy_selected.set_index('Datetime')
         date_occupancy_selected.index = pd.to_datetime(date_occupancy_selected.index, utc=True)
         date_occupancy_agg = date_occupancy_selected.resample(sampling_rate).min().ffill().astype(int)
@@ -115,7 +118,7 @@ def resample_occupancy(occupancy_binary, sampling_rate, devices_list):
     occupancy_selected = occupancy_selected_DF.sort_values(by='Datetime')
     occupancy = occupancy_selected.set_index('Datetime')
 
-    occupancy = occupancy.rename(columns={'Value': 'occupancy'})
+    occupancy = occupancy.rename(columns={'value': 'occupancy'})
 
     occupancy = occupancy.where(occupancy == 0, 1)
 
@@ -136,8 +139,8 @@ def plot_ROC_curve(X_test, y_test, model, model_name: str):
     predicted_class_auc = roc_auc_score(y_test, predicted_class_probability)
 
     # summarize scores
-    print('No Skill: ROC AUC=%.3f' % (random_class_auc))
-    print('Logistic: ROC AUC=%.3f' % (predicted_class_auc))
+    print('Random: ROC AUC=%.3f' % (random_class_auc))
+    print(f'{model_name}: ROC AUC=%.3f' % (predicted_class_auc))
 
     # calculate roc curves
     random_class_fpr, random_class_tpr, _ = roc_curve(y_test, random_class_probability)
@@ -153,9 +156,13 @@ def plot_ROC_curve(X_test, y_test, model, model_name: str):
     pyplot.show()
 
 
-start_date = "2019-11-18 08:00"
-end_date = "2019-12-18 08:00"
+# start_date = "2019-11-01 07:00"
+# end_date = "2019-12-19 07:00"
+start_date = "2019-11-20 07:00"
+end_date = "2019-12-10 07:00"
 freq = 5
+
+# freq = 6
 sampling_rate = '15T'
 devices_list_full = pd.DataFrame([['OLY-A-413', 'OLY-A-414', 'OLY-A-415', 'OLY-A-416', 'OLY-A-417'],
                                   ['9033', '9049', '8989', '7675', '7663'],
@@ -182,22 +189,25 @@ devices_list_room_5 = pd.DataFrame([['OLY-A-417'],
                                     ['ROOM 5'],
                                     ['Room 4.5']])
 
-devices_list = devices_list_room_4
+devices_list = devices_list_room_5
 
-occupancy_binary_part1 = pd.read_csv('data_sets/binary_occupancy_Nov.csv')
-occupancy_binary_part2 = pd.read_csv('data_sets/binary_occupancy_Dec1.csv')
-occupancy_binary_part3 = pd.read_csv('data_sets/binary_occupancy_Dec2.csv')
+occupancy_binary_partN1 = pd.read_csv('data_sets/binary_occupancy_Nov1.csv')
+occupancy_binary_partN2 = pd.read_csv('data_sets/binary_occupancy_Nov2.csv')
+occupancy_binary_partD1 = pd.read_csv('data_sets/binary_occupancy_Dec1.csv')
+occupancy_binary_partD2 = pd.read_csv('data_sets/binary_occupancy_Dec2.csv')
 
-occupancy_binary = occupancy_binary_part1.append([occupancy_binary_part2, occupancy_binary_part3])
-occupancy = resample_occupancy(occupancy_binary, sampling_rate, devices_list)
+occupancy_binary = occupancy_binary_partN1.append([occupancy_binary_partN2, occupancy_binary_partD1,
+                                                   occupancy_binary_partD2])
+
+# occupancy = resample_occupancy(occupancy_binary, sampling_rate, devices_list)
 
 load = get_data_from_API(start_date, end_date, freq, devices_list, sampling_rate)
 
-# occupancy = load.get_avuity_data()
+occupancy = load.get_avuity_data()
 
 co2, noise, humidity, temperature = load.get_awair_data()
 
-business_hours = True
+business_hours = False
 weekends = True
 
 co2 = filter_measurements_data(co2, 'co2', business_hours, weekends)
@@ -205,15 +215,25 @@ noise = filter_measurements_data(noise, 'noise', business_hours, weekends)
 humidity = filter_measurements_data(humidity, 'humidity', business_hours, weekends)
 temperature = filter_measurements_data(temperature, 'temperature', business_hours, weekends)
 
-data = create_dataset(occupancy, co2, noise, humidity)
+data = create_dataset(occupancy, co2, noise, humidity, temperature)
 
-plt.hist(data['occupancy'], 2, histtype='bar')
+data.to_csv('data_co2_occ_room5_num.csv', sep=',')
+
+count_class = data['occupancy'].value_counts()
+
+# plt.figure(figsize=(1, 1))
+# plt.bar(count_class.index, [count_class.loc[0], count_class.loc[1], count_class.loc[2], count_class.loc[3],
+#                             count_class.loc[4], count_class.loc[5], count_class.loc[6]], width=0.2, align='center', alpha=0.5)
+plt.bar(count_class.index, [count_class.loc[0], count_class.loc[1]], width=0.2, align='center', alpha=0.5)
+
+plt.xticks(count_class.index, ['Not Occupied', 'Occupied'])
+plt.ylabel('Number of samples')
+plt.title('Dataset imbalance visualization')
 plt.show()
+
 
 data_cut = (data.loc[(data.index.day == 25) & (data.index.month == 11)]).append(data.loc[(data.index.day == 26) &
                                                                                          (data.index.month == 11)])
-
-
 
 fig, ax1 = plt.subplots()
 color = 'tab:red'
@@ -237,6 +257,7 @@ ax2.tick_params(axis='y', labelcolor=color)
 
 fig.tight_layout()
 plt.title(f'Occupancy vs CO_2')
+plt.show()
 
 scaler = preprocessing.StandardScaler()
 data = data.to_numpy()
@@ -244,15 +265,6 @@ no_features = data.shape[1] - 1
 data[:, 1:no_features + 1] = scaler.fit_transform(data[:, 1:no_features + 1])
 
 # data[:, 0][np.where(data[:, 0] > 0)] = 1
-
-Results_MLP_list = []
-Results_LSTM_list = []
-Results_CNN_list = []
-Results_CNN_LSTM_list = []
-
-number_of_epochs = 1000
-window_size = 32
-batch_size = 64
 
 max_depth = 6
 n_estimators = 150
@@ -293,25 +305,33 @@ prediction_log_regres, accuracy_log_regres, MSE_log_regres, mean_error_log_regre
 plot_confusion_matrix(cm_log_regres, accuracy_log_regres, 'Logistic Regression')
 plot_ROC_curve(X_test_class, y_test_class, log_regres, 'Logistic Regression')
 
+Results_MLP_list = []
+Results_LSTM_list = []
+Results_CNN_list = []
+Results_CNN_LSTM_list = []
+
+number_of_epochs = 500
+window_size = 32
+batch_size = 64
+regularization_penalty = 0.000001
+
+metrics = [
+    metrics.TruePositives(name='tp'),
+    metrics.FalsePositives(name='fp'),
+    metrics.TrueNegatives(name='tn'),
+    metrics.FalseNegatives(name='fn'),
+    metrics.BinaryAccuracy(name='accuracy'),
+    metrics.Precision(name='precision'),
+    metrics.Recall(name='recall'),
+    metrics.AUC(name='auc'),
+]
+
 batches, labels = prepare_data(data, window_size)
 
 X_train, X_test, y_train, y_test = train_test_split(batches, labels, test_size=1 / 3, random_state=42)
 
-metrics = [
-    keras.metrics.TruePositives(name='tp'),
-    keras.metrics.FalsePositives(name='fp'),
-    keras.metrics.TrueNegatives(name='tn'),
-    keras.metrics.FalseNegatives(name='fn'),
-    keras.metrics.BinaryAccuracy(name='accuracy'),
-    keras.metrics.Precision(name='precision'),
-    keras.metrics.Recall(name='recall'),
-    keras.metrics.AUC(name='auc')
-]
-
-regularization_penalty = 0.000001
-
 accuracy_ANN, prediction_ANN, cm_ANN, model_ANN = ANN_classify(X_train, X_test, y_train, y_test, 100, number_of_epochs,
-                                                    window_size, metrics, regularization_penalty)
+                                                               window_size, metrics, regularization_penalty)
 
 metrics_results = pd.DataFrame([accuracy_ANN], columns=['loss', 'TP', 'FP', 'TN', 'FN', 'accuracy', 'precision',
                                                         'recall', 'AUC'])

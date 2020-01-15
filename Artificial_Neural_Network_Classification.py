@@ -11,6 +11,7 @@ import sklearn
 from sklearn.utils import class_weight
 
 warnings.filterwarnings('ignore')
+np.random.seed(12)
 
 
 def ANN_classify(X_train, X_test, y_train, y_test, number_of_nodes, number_of_epochs, window_size, metrics,
@@ -24,6 +25,9 @@ def ANN_classify(X_train, X_test, y_train, y_test, number_of_nodes, number_of_ep
     :param number_of_epochs: number of training iterations
     :param regularization_penalty: regularization penalty on layer parameters during optimization
     """
+    # hierachical models: 1. no shinkage pooling,
+    # weekday structure - structure data not only rooms but also there
+    # covaiare in the model add room - random effect, third - fixed effect day, that represents the - poisson regression , logistic regression try
 
     # Split the generated dataset into train and test set
     no_of_features = X_train.shape[2]

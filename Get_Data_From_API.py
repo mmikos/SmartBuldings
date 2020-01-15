@@ -44,7 +44,7 @@ class get_data_from_API:
             start = date + timedelta(days=self.freq)
 
         for room in self.devices_list.iloc[2, :]:
-            occupancy_selected = occupancy.loc[occupancy['areaName'] == f'{room}', ['startTs', 'occupancy']]
+            occupancy_selected = occupancy.loc[occupancy['areaName'] == f'{room}', ['startTs', 'areaName', 'occupancy']]
             date_occupancy_selected = occupancy_selected.set_index('startTs')
             date_occupancy_selected.index = pd.to_datetime(date_occupancy_selected.index, utc=True)
             date_occupancy_agg = date_occupancy_selected.resample(self.sampling_rate).median().ffill().astype(int)
@@ -79,7 +79,7 @@ class get_data_from_API:
 
             awair_dataset = pd.DataFrame(columns=['comp', 'value', 'timestamp', 'score'])
 
-            for device_id in self.devices_list.iloc[1, :]:
+            for device_id, room in zip(self.devices_list.iloc[1, :], self.devices_list.iloc[2, :]):
                 response_awair = requests.get(
                     f'http://developer-apis.awair.is/v1/orgs/1097/devices/awair-omni/{device_id}/air-data'
                     f'/15-min-avg', headers=headers, params=params)
@@ -88,7 +88,7 @@ class get_data_from_API:
                 awair_data_dict = json.loads(awair_str)
                 awair_norm = pd.io.json.json_normalize(awair_data_dict["data"], record_path="sensors",
                                                        meta=['timestamp', 'score'])
-                awair_sensor_code = [device_id for _ in range(len(awair_norm))]
+                awair_sensor_code = [room for _ in range(len(awair_norm))]
                 awair_norm['sensor_name'] = awair_sensor_code
                 awair_dataset = awair_dataset.append(awair_norm, ignore_index=True)
 
@@ -99,15 +99,15 @@ class get_data_from_API:
         awair = awair.set_index('timestamp')
         awair.index = pd.to_datetime(awair.index, utc=True)
 
-        co2 = awair.loc[awair['comp'] == 'co2', ['value']]
-        co2 = co2.resample(self.sampling_rate).mean().ffill()
+        co2 = awair.loc[awair['comp'] == 'co2', ['sensor_name', 'value']]
+        # co2 = co2.resample(self.sampling_rate).mean().ffill()
 
         noise = awair.loc[awair['comp'] == 'spl_a', ['value']]
-        noise = noise.resample(self.sampling_rate).mean().ffill()
+        # noise = noise.resample(self.sampling_rate).mean().ffill()
 
         humidity = awair.loc[awair['comp'] == 'humid', ['value']]
-        humidity = humidity.resample(self.sampling_rate).mean().ffill()
+        # humidity = humidity.resample(self.sampling_rate).mean().ffill()
 
         temperature = awair.loc[awair['comp'] == 'temp', ['value']]
-        temperature = temperature.resample(self.sampling_rate).mean().ffill()
+        # temperature = temperature.resample(self.sampling_rate).mean().ffill()
         return co2, noise, humidity, temperature

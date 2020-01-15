@@ -154,13 +154,10 @@ def plot_ROC_curve(X_test, y_test, model, model_name: str):
     pyplot.show()
 
 
-start_date = "2019-11-01 07:00"
-end_date = "2019-12-19 07:00"
-# start_date = "2019-11-18 07:00"
-# end_date = "2019-12-08 07:00"
-# freq = 5
+start_date = "2019-11-18 07:00"
+end_date = "2019-12-08 07:00"
+freq = 5
 
-freq = 6
 sampling_rate = '15T'
 devices_list_full = pd.DataFrame([['OLY-A-413', 'OLY-A-414', 'OLY-A-415', 'OLY-A-416', 'OLY-A-417'],
                                   ['9033', '9049', '8989', '7675', '7663'],
@@ -189,19 +186,9 @@ devices_list_room_5 = pd.DataFrame([['OLY-A-417'],
 
 devices_list = devices_list_room_4
 
-occupancy_binary_partN1 = pd.read_csv('data_sets/binary_occupancy_Nov1.csv')
-occupancy_binary_partN2 = pd.read_csv('data_sets/binary_occupancy_Nov2.csv')
-occupancy_binary_partD1 = pd.read_csv('data_sets/binary_occupancy_Dec1.csv')
-occupancy_binary_partD2 = pd.read_csv('data_sets/binary_occupancy_Dec2.csv')
-
-occupancy_binary = occupancy_binary_partN1.append([occupancy_binary_partN2, occupancy_binary_partD1,
-                                                   occupancy_binary_partD2])
-
-occupancy = resample_occupancy(occupancy_binary, sampling_rate, devices_list)
-
 load = get_data_from_API(start_date, end_date, freq, devices_list, sampling_rate)
 
-# occupancy = load.get_avuity_data()
+occupancy = load.get_avuity_data()
 
 co2, noise, humidity, temperature = load.get_awair_data()
 
@@ -215,102 +202,16 @@ temperature = filter_measurements_data(temperature, 'temperature', business_hour
 
 data = create_dataset(occupancy, co2, noise)
 
-count_class = data['occupancy'].value_counts()
-
-# plt.figure(figsize=(1, 1))
-# plt.bar(count_class.index, [count_class.loc[0], count_class.loc[1], count_class.loc[2], count_class.loc[3],
-#                             count_class.loc[4], count_class.loc[5], count_class.loc[6]], width=0.2, align='center', alpha=0.5)
-plt.bar(count_class.index, [count_class.loc[0], count_class.loc[1]], width=0.2, align='center', alpha=0.5)
-
-plt.xticks(count_class.index, ['Not Occupied', 'Occupied'])
-plt.ylabel('Number of samples')
-plt.title('Dataset imbalance visualization')
-plt.show()
-
-
-data_cut = (data.loc[(data.index.day == 25) & (data.index.month == 11)]).append(data.loc[(data.index.day == 26) &
-                                                                                         (data.index.month == 11)])
-
-fig, ax1 = plt.subplots()
-color = 'tab:red'
-ax1.set_xlabel('Time')
-ax1.set_ylabel('Occupancy', color=color)
-
-ax1.plot(data_cut['occupancy'], color=color)
-ax1.tick_params(axis='y', labelcolor=color)
-
-ax2 = ax1.twinx()
-color = 'tab:blue'
-ax2.set_ylabel('CO_2', color=color)
-
-ax2.plot(data_cut['co2'], color=color)
-ax2.tick_params(axis='y', labelcolor=color)
-#
-# ax2.set_ylabel('Noise', color=color)
-#
-# ax2.plot(data_cut['noise'], color=color)
-# ax2.tick_params(axis='y', labelcolor=color)
-
-fig.tight_layout()
-plt.title(f'Occupancy vs CO_2')
-plt.show()
-
-
 scaler = preprocessing.StandardScaler()
 data = data.to_numpy()
 no_features = data.shape[1] - 1
 data[:, 1:no_features + 1] = scaler.fit_transform(data[:, 1:no_features + 1])
 
-# data[:, 0][np.where(data[:, 0] > 0)] = 1
-
-max_depth = 6
-n_estimators = 150
-
-R2_decision_tree, MSE_decision_tree, y_predicted, y_test_dt = Decision_Tree_Regression(
-    data[:, 1:no_features + 1].reshape(-1, no_features),
-    data[:, 0].reshape(-1, 1),
-    max_depth,
-    n_estimators, 'plot', 'measure', 'occ')
-
-mean_error_DT = np.mean(np.abs(y_test_dt - y_predicted))
-
-X_train_class, X_test_class, y_train_class, y_test_class = train_test_split(data[:, 1:no_features + 1], data[:, 0],
-                                                                            test_size=1 / 3, random_state=42,
-                                                                            shuffle=True)
-
-model_Random_Forest = RandomForestClassifier(n_estimators=500, max_depth=8, random_state=0, class_weight='balanced')
-# model_Random_Forest = RandomForestClassifier(n_estimators=100, max_depth=None, random_state=0, class_weight='balanced')
-prediction_Random_Forest, accuracy_Random_Forest, MSE_Random_Forest, mean_error_Random_Forest, cm_Random_Forest = \
-    fit_model(model_Random_Forest, X_train_class, X_test_class, y_train_class, y_test_class)
-
-plot_confusion_matrix(cm_Random_Forest, accuracy_Random_Forest, 'Random Forest')
-plot_ROC_curve(X_test_class, y_test_class, model_Random_Forest, 'Random Forest')
-
-model_SVC = SVC(C=200, kernel='rbf', class_weight='balanced', gamma='auto', probability=True)
-# model_SVC = SVC(C=100, kernel='rbf', class_weight='balanced', gamma='auto')
-prediction_SVC, accuracy_SVC, MSE_SVC, mean_error_SVC, cm_SVC = \
-    fit_model(model_SVC, X_train_class, X_test_class, y_train_class, y_test_class)
-
-plot_confusion_matrix(cm_SVC, accuracy_SVC, 'SVC')
-plot_ROC_curve(X_test_class, y_test_class, model_SVC, 'SVC')
-
-log_regres = LogisticRegression(C=100, random_state=0, class_weight='balanced')
-
-prediction_log_regres, accuracy_log_regres, MSE_log_regres, mean_error_log_regres, cm_log_regres = \
-    fit_model(log_regres, X_train_class, X_test_class, y_train_class, y_test_class)
-
-plot_confusion_matrix(cm_log_regres, accuracy_log_regres, 'Logistic Regression')
-plot_ROC_curve(X_test_class, y_test_class, log_regres, 'Logistic Regression')
-
-Results_MLP_list = []
-Results_LSTM_list = []
-Results_CNN_list = []
-Results_CNN_LSTM_list = []
-
 number_of_epochs = 500
 window_size = 32
 batch_size = 64
 regularization_penalty = 0.000001
+
 
 metrics = [
     metrics.TruePositives(name='tp'),
@@ -327,15 +228,6 @@ batches, labels = prepare_data(data, window_size)
 
 X_train, X_test, y_train, y_test = train_test_split(batches, labels, test_size=1 / 3, random_state=42)
 
-accuracy_ANN, prediction_ANN, cm_ANN, model_ANN = ANN_classify(X_train, X_test, y_train, y_test, 100, number_of_epochs,
-                                                               window_size, metrics, regularization_penalty)
-
-metrics_results = pd.DataFrame([accuracy_ANN], columns=['loss', 'TP', 'FP', 'TN', 'FN', 'accuracy', 'precision',
-                                                        'recall', 'AUC'])
-
-plot_confusion_matrix(cm_ANN, metrics_results.iloc[0, 6], 'Neural Network')
-ANN_summary = classification_report(y_test, prediction_ANN)
-plot_ROC_curve(X_test, y_test, model_ANN, 'Neural Network')
 
 number_of_nodes_MLP = 64
 model_MLP = MLP(window_size, no_features, number_of_nodes_MLP)
