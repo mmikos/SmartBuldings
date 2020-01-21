@@ -52,6 +52,7 @@ def ANN_classify(X_train, X_test, y_train, y_test, number_of_nodes, number_of_ep
     callback_list = [callbacks.EarlyStopping(monitor='val_loss', patience=20)]
     training_history = model.fit(X_train, y_train,
                                  batch_size=64, epochs=number_of_epochs,
+
                                  validation_data=(X_test, y_test), class_weight=class_weights, callbacks=callback_list)
     pred_train = model.predict_classes(X_train)
     scores_train = model.evaluate(X_train, y_train, verbose=0)

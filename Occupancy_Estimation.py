@@ -163,7 +163,7 @@ end_date = "2019-12-10 07:00"
 freq = 5
 
 # freq = 6
-sampling_rate = '15T'
+sampling_rate = '30T'
 devices_list_full = pd.DataFrame([['OLY-A-413', 'OLY-A-414', 'OLY-A-415', 'OLY-A-416', 'OLY-A-417'],
                                   ['9033', '9049', '8989', '7675', '7663'],
                                   ['ROOM 1', 'ROOM 2', 'ROOM 3', 'ROOM 4', 'ROOM 5'],
@@ -189,7 +189,7 @@ devices_list_room_5 = pd.DataFrame([['OLY-A-417'],
                                     ['ROOM 5'],
                                     ['Room 4.5']])
 
-devices_list = devices_list_room_5
+devices_list = devices_list_room_1
 
 occupancy_binary_partN1 = pd.read_csv('data_sets/binary_occupancy_Nov1.csv')
 occupancy_binary_partN2 = pd.read_csv('data_sets/binary_occupancy_Nov2.csv')
@@ -199,13 +199,15 @@ occupancy_binary_partD2 = pd.read_csv('data_sets/binary_occupancy_Dec2.csv')
 occupancy_binary = occupancy_binary_partN1.append([occupancy_binary_partN2, occupancy_binary_partD1,
                                                    occupancy_binary_partD2])
 
-# occupancy = resample_occupancy(occupancy_binary, sampling_rate, devices_list)
+occupancy = resample_occupancy(occupancy_binary, sampling_rate, devices_list)
 
 load = get_data_from_API(start_date, end_date, freq, devices_list, sampling_rate)
 
-occupancy = load.get_avuity_data()
+# occupancy = load.get_avuity_data()
 
 co2, noise, humidity, temperature = load.get_awair_data()
+
+co2 = pd.DataFrame(co2["value"])
 
 business_hours = False
 weekends = True
@@ -217,7 +219,7 @@ temperature = filter_measurements_data(temperature, 'temperature', business_hour
 
 data = create_dataset(occupancy, co2, noise, humidity, temperature)
 
-data.to_csv('data_co2_occ_room5_num.csv', sep=',')
+data.to_csv('data_co2_occ_bin_room1_filtered_30.csv', sep=',')
 
 count_class = data['occupancy'].value_counts()
 
