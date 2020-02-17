@@ -89,7 +89,8 @@ def create_dataset(occupancy_data, *args):
     measurements = occupancy_data
 
     for ar in args:
-        data_set = measurements.join(ar, how='inner')
+        # data_set = measurements.join(ar, how='left')
+        data_set = pd.merge(measurements, ar, left_index=True, right_index=True)
         measurements = data_set
 
     return data_set
@@ -158,12 +159,15 @@ def plot_ROC_curve(X_test, y_test, model, model_name: str):
 
 # start_date = "2019-11-01 07:00"
 # end_date = "2019-12-19 07:00"
-start_date = "2019-11-20 07:00"
-end_date = "2019-12-10 07:00"
+# start_date = "2019-11-20 07:00"
+# end_date = "2019-12-10 07:00"
+
+start_date = "2019-11-18 08:00"
+end_date = "2019-12-08 08:00"
 freq = 5
 
 # freq = 6
-sampling_rate = '30T'
+sampling_rate = '15T'
 devices_list_full = pd.DataFrame([['OLY-A-413', 'OLY-A-414', 'OLY-A-415', 'OLY-A-416', 'OLY-A-417'],
                                   ['9033', '9049', '8989', '7675', '7663'],
                                   ['ROOM 1', 'ROOM 2', 'ROOM 3', 'ROOM 4', 'ROOM 5'],
@@ -189,7 +193,7 @@ devices_list_room_5 = pd.DataFrame([['OLY-A-417'],
                                     ['ROOM 5'],
                                     ['Room 4.5']])
 
-devices_list = devices_list_room_1
+devices_list = devices_list_room_4
 
 occupancy_binary_partN1 = pd.read_csv('data_sets/binary_occupancy_Nov1.csv')
 occupancy_binary_partN2 = pd.read_csv('data_sets/binary_occupancy_Nov2.csv')
@@ -200,14 +204,23 @@ occupancy_binary = occupancy_binary_partN1.append([occupancy_binary_partN2, occu
                                                    occupancy_binary_partD2])
 
 occupancy = resample_occupancy(occupancy_binary, sampling_rate, devices_list)
+occupancy = resample_occupancy(occupancy_binary, sampling_rate, devices_list)
+
+# occupancy = pd.read_csv('data_sets/data_co2_occ_room4_num.csv')
+#
+# occupancy = occupancy.sort_values(by='Unnamed: 0', ascending=True)
+# occupancy = occupancy.set_index('Unnamed: 0')
+# occupancy.index = pd.to_datetime(occupancy.index, utc=True)
+# occupancy = occupancy.iloc[:, :1]
+# occupancy.iloc[:, 0] = pd.to_numeric(occupancy.iloc[:, 0])
 
 load = get_data_from_API(start_date, end_date, freq, devices_list, sampling_rate)
 
 # occupancy = load.get_avuity_data()
 
-co2, noise, humidity, temperature = load.get_awair_data()
+co2, noise, humidity, temperature, light = load.get_awair_data()
 
-co2 = pd.DataFrame(co2["value"])
+# co2 = pd.DataFrame(co2["value"])
 
 business_hours = False
 weekends = True
@@ -216,10 +229,19 @@ co2 = filter_measurements_data(co2, 'co2', business_hours, weekends)
 noise = filter_measurements_data(noise, 'noise', business_hours, weekends)
 humidity = filter_measurements_data(humidity, 'humidity', business_hours, weekends)
 temperature = filter_measurements_data(temperature, 'temperature', business_hours, weekends)
+light = filter_measurements_data(light, 'light', business_hours, weekends)
 
-data = create_dataset(occupancy, co2, noise, humidity, temperature)
 
-data.to_csv('data_co2_occ_bin_room1_filtered_30.csv', sep=',')
+data = create_dataset(occupancy, co2, noise, humidity, temperature, light)
+
+# data.to_csv('data_co2_occ_room5_numerical_15.csv', sep=';', decimal=',')
+# data = pd.read_csv('data_co2_occ_full_numerical.csv', sep=';', decimal=',', index_col=0)
+# data.index = pd.to_datetime(data.index, utc=True)
+data.iloc[:, 0] = pd.to_numeric(data.iloc[:, 0])
+
+plt.figure(figsize=(12,8))
+sns.heatmap(data.corr(), cmap='Blues',annot=True)
+plt.show()
 
 count_class = data['occupancy'].value_counts()
 
@@ -540,7 +562,6 @@ print('whatever')
 # Humidity = get_single_measurement(data_bricks, 'Humidity')
 # Light = get_single_measurement(data_bricks, 'Light')
 # Noise = get_single_measurement(data_bricks, 'Sound')
-# Occupancy = get_single_measurement(data_bricks, 'Occupancy')
 # Movement = get_single_measurement(data_bricks, 'Motion')
 # CO2 = get_single_measurement(data_bricks, 'CarbonDioxide')
 

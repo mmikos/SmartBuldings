@@ -99,15 +99,19 @@ class get_data_from_API:
         awair = awair.set_index('timestamp')
         awair.index = pd.to_datetime(awair.index, utc=True)
 
-        co2 = awair.loc[awair['comp'] == 'co2', ['sensor_name', 'value']]
-        # co2 = co2.resample(self.sampling_rate).mean().ffill()
+        co2 = awair.loc[awair['comp'] == 'co2', ['value']]
+        co2 = co2.resample(self.sampling_rate).mean().ffill()
 
         noise = awair.loc[awair['comp'] == 'spl_a', ['value']]
-        # noise = noise.resample(self.sampling_rate).mean().ffill()
+        noise = noise.resample(self.sampling_rate).mean().ffill()
 
         humidity = awair.loc[awair['comp'] == 'humid', ['value']]
-        # humidity = humidity.resample(self.sampling_rate).mean().ffill()
+        humidity = humidity.resample(self.sampling_rate).mean().ffill()
 
         temperature = awair.loc[awair['comp'] == 'temp', ['value']]
-        # temperature = temperature.resample(self.sampling_rate).mean().ffill()
-        return co2, noise, humidity, temperature
+        temperature = temperature.resample(self.sampling_rate).mean().ffill()
+
+        light = awair.loc[awair['comp'] == 'lux', ['value']]
+        light = light.resample(self.sampling_rate).mean().ffill()
+
+        return co2, noise, humidity, temperature, light

@@ -4,12 +4,16 @@ library(ggplot2)
 library(scales)
 library(shinystan)
 library(lubridate)
-library(rethinking)
+library(brms)
+library(tidyverse)
+#library(rethinking)
 #library(parallel)
 
 Sys.setenv("MC_CORES"= 8)
 Sys.getenv("MC_CORES")
 getOption("mc.cores", 8)
+
+Sys.setenv(TZ="Europe/Berlin")
 
 #data = read.csv("data_co2_occ_room1.csv")
 
@@ -162,8 +166,7 @@ par(mfrow = 1:2, mar = c(5,3.8,1,0) + 0.1, las = 3)
 plot(loo_model2, label_points = TRUE)
 
 detach(package:rethinking, unload = T)
-library(brms)
-library(tidyverse)
+
 
 brm_poisson_model <- 
   brm(data = data, family = poisson,
@@ -183,7 +186,7 @@ brm_negbinomial_model <-
       occupancy ~ 1 + co2.rescaled + (1 | room_category),
       iter = 2000, cores = 8, control = list(adapt_delta = 0.9999999, max_treedepth=20),
       seed = 334)
-
+  
 
 
 mcmc_plot(brm_poisson_model)
@@ -199,12 +202,12 @@ print(brm_poisson_model)
 
 brm_zero_inflated_poisson_model_day <- brm(data = data, family = zero_inflated_poisson,
                                            occupancy ~ 1 + co2.rescaled + (1 | room) + (1 | day_of_week),
-                                           iter = 2000, cores = 1, control = list(adapt_delta = 0.99999999, max_treedepth=20),
+                                           iter = 2000, cores = 8, control = list(adapt_delta = 0.99999999, max_treedepth=20),
                                            seed = 334)
 
 brm_zero_inflated_poisson_model_time <- brm(data = data, family = zero_inflated_poisson,
                                             occupancy ~ 1 + co2.rescaled + (1 | room) + (1 | day_of_week) + (1 | time_cat),
-                                            iter = 2000, cores = 1, control = list(adapt_delta = 0.99999999, max_treedepth=20),
+                                            iter = 2000, cores = 8, control = list(adapt_delta = 0.99999999, max_treedepth=20),
                                             seed = 334)
 
 #### Poisson model

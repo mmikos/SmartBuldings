@@ -14,7 +14,7 @@ warnings.filterwarnings('ignore')
 np.random.seed(12)
 
 
-def ANN_classify(X_train, X_test, y_train, y_test, number_of_nodes, number_of_epochs, window_size, metrics,
+def ANN_classify(X_train, X_test, y_train, y_test, number_of_nodes, number_of_epochs, window_size, metrics_list,
                  regularization_penalty):
     """
     :param X: array of independent variables
@@ -48,7 +48,7 @@ def ANN_classify(X_train, X_test, y_train, y_test, number_of_nodes, number_of_ep
 
     model.compile(optimizer='adam',
                   loss='binary_crossentropy',
-                  metrics=metrics)
+                  metrics=metrics_list)
     callback_list = [callbacks.EarlyStopping(monitor='val_loss', patience=20)]
     training_history = model.fit(X_train, y_train,
                                  batch_size=64, epochs=number_of_epochs,
